@@ -183,6 +183,21 @@ export function buildTwitchChatPopoutUrl(channel: string): string {
   return `https://www.twitch.tv/popout/${encodeURIComponent(channel)}/chat?popout=`;
 }
 
+/** Prefer the watch page's own chatframe when it is already hydrated (ISS-022).
+ * ページ側 chatframe が生きていればそれを優先する。 */
+export function resolveYouTubePageChatFrameSrc(
+  doc: Document = document,
+): string | null {
+  const siteFrame =
+    doc.querySelector<HTMLIFrameElement>("iframe#chatframe") ??
+    doc.querySelector<HTMLIFrameElement>("ytd-live-chat-frame iframe");
+  const src = siteFrame?.src?.trim() ?? "";
+  if (!src || src.startsWith("about:blank")) {
+    return null;
+  }
+  return src;
+}
+
 /**
  * Official chat URL suitable for in-page panel iframe (not the OS popout window).
  * ページ内パネル iframe 向けの公式チャット URL（OS 別窓とは別）。
@@ -193,6 +208,13 @@ export function resolveNativePanelChatUrl(
   try {
     const url = new URL(href);
     if (/(^|\.)youtube\.com$/i.test(url.hostname)) {
+      // Prefer the sidebar chatframe — constructed /live_chat?v= can show
+      // "chat disabled" while the page frame still works (ISS-022).
+      // サイドバー枠を優先。自前 live_chat URL だけ拒否される配信がある。
+      const pageSrc = resolveYouTubePageChatFrameSrc();
+      if (pageSrc) {
+        return pageSrc;
+      }
       const videoId = extractYouTubeVideoId(href);
       if (!videoId) {
         return null;

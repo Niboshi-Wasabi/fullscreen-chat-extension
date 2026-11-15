@@ -136,12 +136,17 @@ test("YouTube accepts only the known chat frame and clears history after rewind"
   page,
   context,
 }) => {
+  // Explicit live UI (not isLiveBroadcast meta alone) — ISS-021.
+  // ライブ明示 UI が必要（isLiveBroadcast meta だけでは不足）— ISS-021。
   const html = fs
     .readFileSync(
       new URL("../fixtures/youtube-comments.html", import.meta.url),
       "utf8",
     )
-    .replace("<head>", '<head><meta itemprop="isLiveBroadcast" content="True">')
+    .replace(
+      '<div id="movie_player" class="html5-video-player">',
+      '<div id="movie_player" class="html5-video-player ytp-live"><span class="badge-style-type-live-now">LIVE</span>',
+    )
     .replace(
       "</body>",
       '<script>document.querySelector("video").currentTime=10;</script></body>',

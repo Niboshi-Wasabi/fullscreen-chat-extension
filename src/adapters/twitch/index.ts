@@ -2,7 +2,7 @@ import {
   fillNativeInput,
   canClickNativeButton,
 } from "../../shared/native-compose";
-import { mapTwitchRole, readTwitchBadges } from "../../shared/twitch-role";
+import { mapTwitchRole, readTwitchBadgeIcons } from "../../shared/twitch-role";
 import {
   createMessageId,
   looksLikeCommand,
@@ -366,7 +366,11 @@ export function parseTwitchMessage(
     return null;
   }
 
-  const badges = readTwitchBadges(element);
+  const badgeIcons = readTwitchBadgeIcons(element);
+  const badges = badgeIcons.map((badge) => badge.alt);
+  const iconsWithSrc = badgeIcons.filter(
+    (badge): badge is { alt: string; src: string } => Boolean(badge.src),
+  );
 
   const role = mapTwitchRole(badges, element);
   const selfName = resolveTwitchSelfAuthorName();
@@ -403,6 +407,7 @@ export function parseTwitchMessage(
     timestampMs: Date.now(),
     role,
     badges,
+    badgeIcons: iconsWithSrc.length > 0 ? iconsWithSrc : undefined,
     isCommand: looksLikeCommand(displayText),
   };
 }

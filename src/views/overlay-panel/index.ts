@@ -1,7 +1,8 @@
 import { bindCompose } from "../../shared/compose";
-import type { NormalizedMessage } from "../../core/message";
+import type { MessageSegment, NormalizedMessage } from "../../core/message";
 import { ensureLocale, t } from "../../shared/i18n";
 import { NATIVE_CHAT_FRAME_ID } from "../../shared/dom-ids";
+import { isSafeHttpsImageUrl } from "../../shared/safe-image-url";
 import type { ExtensionSettings, PanelBounds } from "../../shared/settings";
 
 const HOST_ID = "fce-overlay-panel-host";
@@ -23,12 +24,18 @@ export interface OverlayPanelController {
   reparentForFullscreen(): void;
 }
 
+const NATIVE_CHAT_DISABLED_RE =
+  /チャットは無効|chat is disabled|chat has been disabled|チャットをご利用いただけません/i;
+
 export function createOverlayPanel(options: {
   onSend: (text: string, replyToId?: string) => Promise<boolean>;
   onPositionChange?: (position: PanelBounds) => void;
   /** Persist quick visual tweaks from the handle gear / ハンドルギアからの見た目即時保存 */
   onQuickPanelChange?: (patch: Partial<ExtensionSettings["panel"]>) => void;
   onOpenOptions?: () => void;
+  /** Official iframe showed a disabled/unavailable chat page (ISS-022).
+   * 公式 iframe がチャット無効ページを返したとき。 */
+  onNativeChatRejected?: () => void;
 }): OverlayPanelController {
   let unbindCompose: (() => void) | null = null;
   let host: HTMLDivElement | null = null;
@@ -179,6 +186,20 @@ export function createOverlayPanel(options: {
       nativeFrame.title = "Official chat";
       nativeFrame.allow = "clipboard-write; fullscreen";
       nativeFrame.setAttribute("aria-hidden", "true");
+      nativeFrame.addEventListener("load", () => {
+        if (!nativeFrame || !isNativeMode()) {
+          return;
+        }
+        try {
+          const text = nativeFrame.contentDocument?.body?.textContent ?? "";
+          if (NATIVE_CHAT_DISABLED_RE.test(text)) {
+            options.onNativeChatRejected?.();
+          }
+        } catch {
+          // Cross-origin: cannot inspect; keep native mode.
+          // クロスオリジンでは中身を見られないので公式枠のまま。
+        }
+      });
 
       composeEl = document.createElement("form");
       composeEl.className = "fce-panel-compose";
@@ -760,6 +781,38 @@ function clampPosition(
   };
 }
 
+function appendMessageBody(
+  body: HTMLElement,
+  message: NormalizedMessage,
+): void {
+  const segments: MessageSegment[] = message.segments?.length
+    ? message.segments
+    : [{ type: "text", text: message.text }];
+  for (const segment of segments) {
+    if (segment.type === "text") {
+      if (!segment.text) {
+        continue;
+      }
+      body.appendChild(document.createTextNode(segment.text));
+      continue;
+    }
+    if (!isSafeHttpsImageUrl(segment.src)) {
+      body.appendChild(
+        document.createTextNode(segment.alt ? `:${segment.alt}:` : "✦"),
+      );
+      continue;
+    }
+    const img = document.createElement("img");
+    img.className = "fce-panel-emoji";
+    img.src = segment.src;
+    img.alt = segment.alt || "emoji";
+    img.title = segment.alt || "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    body.appendChild(img);
+  }
+}
+
 function renderRow(
   message: NormalizedMessage,
   settings: ExtensionSettings | null,
@@ -774,17 +827,39 @@ function renderRow(
     row.appendChild(author);
   }
   if (settings?.panel.showBadges !== false) {
-    const badges = message.badges.filter((badge) => badge !== "replyable");
-    if (badges.length) {
+    const safeIcons =
+      message.badgeIcons?.filter(
+        (icon) => icon.src && isSafeHttpsImageUrl(icon.src),
+      ) ?? [];
+    const iconAlts = new Set(safeIcons.map((icon) => icon.alt));
+    const textBadges = message.badges.filter(
+      (badge) => badge !== "replyable" && !iconAlts.has(badge),
+    );
+    if (safeIcons.length > 0 || textBadges.length > 0) {
       const badge = document.createElement("span");
       badge.className = "fce-panel-badges";
-      badge.textContent = badges.join(" · ");
+      for (const icon of safeIcons) {
+        const img = document.createElement("img");
+        img.className = "fce-panel-badge-icon";
+        img.src = icon.src;
+        img.alt = icon.alt;
+        img.title = icon.alt;
+        img.loading = "lazy";
+        img.decoding = "async";
+        badge.appendChild(img);
+      }
+      if (textBadges.length > 0) {
+        if (safeIcons.length > 0) {
+          badge.appendChild(document.createTextNode(" · "));
+        }
+        badge.appendChild(document.createTextNode(textBadges.join(" · ")));
+      }
       row.appendChild(badge);
     }
   }
   const body = document.createElement("span");
   body.className = "fce-panel-text";
-  body.textContent = message.text;
+  appendMessageBody(body, message);
   row.appendChild(body);
   if (actions?.onReply) {
     const reply = document.createElement("button");
@@ -968,6 +1043,14 @@ function injectStyles(host: HTMLElement): void {
       grid-template-columns: 1fr auto;
       gap: 2px 8px;
       align-items: start;
+    }
+    #${HOST_ID} .fce-panel-badge-icon,
+    #${HOST_ID} .fce-panel-emoji {
+      width: 1.1em;
+      height: 1.1em;
+      vertical-align: -0.15em;
+      margin-inline: 0.1em;
+      object-fit: contain;
     }
     #${HOST_ID} .fce-panel-badges,
     #${HOST_ID} .fce-panel-author {

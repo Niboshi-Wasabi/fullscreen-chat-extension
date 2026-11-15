@@ -18,7 +18,10 @@ import {
   saveSettings,
   type DisplayMode,
 } from "../shared/settings";
-import { resolvePopoutTargetForPolicy } from "../shared/site-ids";
+import {
+  extractYouTubeVideoId,
+  resolvePopoutTargetForPolicy,
+} from "../shared/site-ids";
 import { POPOUT_OPEN_TYPE } from "../shared/runtime-messages";
 import { startPlayerChrome } from "../views/player-chrome";
 
@@ -90,19 +93,30 @@ function runYouTubeTopFrame(): () => void {
   const runtime = createRuntimeController(startYouTubeRuntimeForPage);
   const stopPlayerChrome = startPlayerChrome("youtube");
   const stopCommands = bindCommandListener();
-  const restart = () => {
+  // Theater/fullscreen fires yt-page-data-updated without changing the video —
+  // only restart when the watch identity changes (ISS-023).
+  // シアター／全画面でも page-data-updated が飛ぶが、動画が同じなら再起動しない。
+  let lastWatchKey = "";
+  const restartIfWatchChanged = () => {
+    const key =
+      extractYouTubeVideoId(location.href) ??
+      `${location.pathname}${location.search}`;
+    if (key === lastWatchKey) {
+      return;
+    }
+    lastWatchKey = key;
     void runtime.restart();
   };
   // Firefox tab teardown interrupted the previous JS removal loop before stop().
   // Keep both navigation subscriptions under one native cancellation operation.
   const navigation = new AbortController();
-  window.addEventListener("yt-navigate-finish", restart, {
+  window.addEventListener("yt-navigate-finish", restartIfWatchChanged, {
     signal: navigation.signal,
   });
-  window.addEventListener("yt-page-data-updated", restart, {
+  window.addEventListener("yt-page-data-updated", restartIfWatchChanged, {
     signal: navigation.signal,
   });
-  restart();
+  restartIfWatchChanged();
   return () => {
     navigation.abort();
     stopCommands();
@@ -113,6 +127,9 @@ function runYouTubeTopFrame(): () => void {
 
 async function startYouTubeRuntimeForPage(): Promise<() => void> {
   let mode: "live" | "comments" | null = null;
+  // Hold live across brief UI flicker on theater/fullscreen (ISS-023 review).
+  // シアター／全画面でライブ UI が一瞬消えてもすぐ comments に落とさない。
+  let leaveLiveConfirmations = 0;
   const runtime = createRuntimeController((signal) =>
     mode === "live"
       ? startYouTubeLiveRuntime(signal)
@@ -121,13 +138,21 @@ async function startYouTubeRuntimeForPage(): Promise<() => void> {
         : Promise.resolve(() => {}),
   );
   const sync = () => {
-    const next = isYouTubeWatchWithLiveChat()
+    const detected = isYouTubeWatchWithLiveChat()
       ? "live"
       : isYouTubeWatchWithComments()
         ? "comments"
         : null;
-    if (next === mode) return;
-    mode = next;
+    if (mode === "live" && detected !== "live") {
+      leaveLiveConfirmations += 1;
+      if (leaveLiveConfirmations < 3) {
+        return;
+      }
+    } else {
+      leaveLiveConfirmations = 0;
+    }
+    if (detected === mode) return;
+    mode = detected;
     void runtime.restart();
   };
   sync();

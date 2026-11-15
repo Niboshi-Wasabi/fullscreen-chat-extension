@@ -1,5 +1,6 @@
 import type { NormalizedMessage } from "../core/message";
 import { NATIVE_CHAT_FRAME_ID } from "./dom-ids";
+import { isSafeHttpsImageUrl } from "./safe-image-url";
 
 const record = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
@@ -55,12 +56,7 @@ export function isYouTubeChatMessage(
           !text(segment.src, 8192)
         )
           return false;
-        try {
-          const url = new URL(segment.src);
-          return url.protocol === "https:" && !url.username && !url.password;
-        } catch {
-          return false;
-        }
+        return isSafeHttpsImageUrl(segment.src);
       }))
   )
     return false;

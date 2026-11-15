@@ -72,16 +72,37 @@ export async function startSiteRuntime(
 
   tryActivate();
 
+  // Brief isSiteActive false (live UI flicker) must not tear down the runtime.
+  // ライブ UI 瞬断だけで runtime を破棄しない（ISS-023 レビュー）。
+  let deactivateTimer: number | null = null;
+  const clearDeactivateTimer = () => {
+    if (deactivateTimer !== null) {
+      window.clearTimeout(deactivateTimer);
+      deactivateTimer = null;
+    }
+  };
   const pageObserver = new MutationObserver(() => {
     if (!active) {
+      clearDeactivateTimer();
       tryActivate();
       return;
     }
-    if (!options.isSiteActive()) {
+    if (options.isSiteActive()) {
+      clearDeactivateTimer();
+      return;
+    }
+    if (deactivateTimer !== null) {
+      return;
+    }
+    deactivateTimer = window.setTimeout(() => {
+      deactivateTimer = null;
+      if (cancelled || !active || options.isSiteActive()) {
+        return;
+      }
       disposeActive?.();
       disposeActive = null;
       active = false;
-    }
+    }, 3000);
   });
   pageObserver.observe(document.documentElement, {
     childList: true,
@@ -91,6 +112,7 @@ export async function startSiteRuntime(
   const unwatch = watchSettings((next) => {
     settings = next;
     if (!options.isSiteEnabled(next) || !next.enabled) {
+      clearDeactivateTimer();
       disposeActive?.();
       disposeActive = null;
       active = false;
@@ -103,6 +125,7 @@ export async function startSiteRuntime(
 
   return () => {
     cancelled = true;
+    clearDeactivateTimer();
     unwatch();
     pageObserver.disconnect();
     disposeActive?.();
@@ -125,6 +148,10 @@ function startActiveRuntime(
   let lastShowDanmaku = false;
   let disposed = false;
   let pipGeneration = 0;
+  // Official iframe returned "chat disabled" — keep self-rendered list (ISS-022).
+  // 公式 iframe がチャット無効なら自前リストに落とす。
+  let nativeChatRejected = false;
+  let lastNativeUrlAttempt: string | null = null;
 
   const adapter = options.createAdapter();
   const panel = createOverlayPanel({
@@ -140,6 +167,17 @@ function startActiveRuntime(
     },
     onOpenOptions: () => {
       void browser.runtime.openOptionsPage();
+    },
+    onNativeChatRejected: () => {
+      if (disposed || nativeChatRejected) {
+        return;
+      }
+      nativeChatRejected = true;
+      panel.setNativeChatUrl(null);
+      // Clear panel native URL so the list surface shows; adapter interval
+      // recreates the hidden receiver when the panel frame is gone.
+      // パネル公式枠を外して自前リストへ。隠し受信は adapter 側 interval が立て直す。
+      ensureRuntimeMounted(getSettings(), options.resolveMountParent());
     },
   });
   const danmaku = createDanmakuView();
@@ -334,7 +372,7 @@ function startActiveRuntime(
     const route = routeDisplay(options.site, settings);
     if (
       !route.showPanel ||
-      resolvePanelNativeUrl(options.site, settings) ||
+      resolvePanelNativeUrlForMount(settings) ||
       archiveSync.size() === 0
     ) {
       return;
@@ -350,15 +388,12 @@ function startActiveRuntime(
     const filtered = applyNgFilter(messages, settings.filter).visible;
     if (route.showPanel) {
       panel.applySettings(settings);
-      panel.setNativeChatUrl(resolvePanelNativeUrl(options.site, settings));
+      const nativeUrl = resolvePanelNativeUrlForMount(settings);
+      panel.setNativeChatUrl(nativeUrl);
       // Native replay UI syncs itself; custom list uses timed history when available.
       // 公式リプレイは自前同期。自前リストは時刻付き履歴を優先。
       const media = getPageMediaTimeSec();
-      if (
-        !resolvePanelNativeUrl(options.site, settings) &&
-        media !== null &&
-        archiveSync.size() > 0
-      ) {
+      if (!nativeUrl && media !== null && archiveSync.size() > 0) {
         panel.setMessages(
           applyNgFilter(archiveSync.visibleUpTo(media), settings.filter)
             .visible,
@@ -455,6 +490,25 @@ function startActiveRuntime(
     }
   }
 
+  function resolvePanelNativeUrlForMount(
+    next: ExtensionSettings,
+  ): string | null {
+    if (!next.panel.useNativeChat || options.site === "youtube-comments") {
+      return null;
+    }
+    const url = resolveNativePanelChatUrl(location.href);
+    // Retry when the candidate URL changes (SPA / chatframe hydration).
+    // URL が変わったら拒否フラグを戻して再試行する。
+    if (url !== lastNativeUrlAttempt) {
+      lastNativeUrlAttempt = url;
+      nativeChatRejected = false;
+    }
+    if (nativeChatRejected) {
+      return null;
+    }
+    return url;
+  }
+
   function ensureRuntimeMounted(
     next: ExtensionSettings,
     parent: HTMLElement,
@@ -480,7 +534,7 @@ function startActiveRuntime(
         panelMounted = true;
       }
       panel.applySettings(next);
-      panel.setNativeChatUrl(resolvePanelNativeUrl(options.site, next));
+      panel.setNativeChatUrl(resolvePanelNativeUrlForMount(next));
     } else if (panelMounted) {
       panel.unmount();
       panelMounted = false;
@@ -540,14 +594,4 @@ function samePanelPosition(
     left.w === right.w &&
     left.h === right.h
   );
-}
-
-function resolvePanelNativeUrl(
-  site: SiteKind,
-  settings: ExtensionSettings,
-): string | null {
-  if (!settings.panel.useNativeChat || site === "youtube-comments") {
-    return null;
-  }
-  return resolveNativePanelChatUrl(location.href);
 }

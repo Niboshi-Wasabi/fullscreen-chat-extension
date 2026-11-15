@@ -45,7 +45,9 @@ export function checkDocumentation(root) {
         errors.push(`${relative}: malformed link ${raw}`);
         continue;
       }
-      const resolved = path.resolve(path.dirname(file), target);
+      // Same-document anchors (`#iss-021`) resolve to the current file, not its directory.
+      // 同一文書アンカーはディレクトリではなく当該ファイルへ解決する。
+      const resolved = target ? path.resolve(path.dirname(file), target) : file;
       const inside = path.relative(root, resolved);
       if (
         inside === ".." ||
@@ -55,13 +57,16 @@ export function checkDocumentation(root) {
         errors.push(`${relative}: link escapes repository: ${raw}`);
       else if (!fs.existsSync(resolved))
         errors.push(`${relative}: broken link ${raw}`);
-      else if (
-        /#iss-\d+$/i.test(raw) &&
-        !fs
-          .readFileSync(resolved, "utf8")
-          .includes(`## ${raw.split("#")[1].toUpperCase()}`)
-      )
-        errors.push(`${relative}: missing issue anchor ${raw}`);
+      else if (/#iss-\d+$/i.test(raw)) {
+        if (!fs.statSync(resolved).isFile())
+          errors.push(`${relative}: issue anchor target is not a file: ${raw}`);
+        else if (
+          !fs
+            .readFileSync(resolved, "utf8")
+            .includes(`## ${raw.split("#")[1].toUpperCase()}`)
+        )
+          errors.push(`${relative}: missing issue anchor ${raw}`);
+      }
     }
     if (file.endsWith("SKILL.md") || file.endsWith(".mdc")) {
       const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);

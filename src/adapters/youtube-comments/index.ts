@@ -34,7 +34,7 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
   let onMessage: ((message: NormalizedMessage) => void) | null = null;
   let observer: MutationObserver | null = null;
   let ensureTimer: number | null = null;
-  let didNudgeComments = false;
+  let nudgeAttempts = 0;
   let lastAppliedSort: "top" | "newest" | null = null;
   let sortAttempts = 0;
   const elementById = new Map<string, Element>();
@@ -46,6 +46,7 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
       seen = new WeakSet<Element>();
       onMessage = callback;
       sortAttempts = 0;
+      nudgeAttempts = 0;
       elementById.clear();
       nudgeCommentsIntoView();
       void applyPreferredSort();
@@ -99,7 +100,12 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
   };
 
   function nudgeCommentsIntoView(): void {
-    if (didNudgeComments) {
+    // Hydrated — nothing to do. Empty in-view sections wait without scrolling.
+    // 水和済みなら何もしない。見えているが空ならスクロールせず待機（ISS-021 レビュー）。
+    if (document.querySelector(COMMENT_SELECTORS)) {
+      return;
+    }
+    if (nudgeAttempts >= 4) {
       return;
     }
     const section = document.querySelector<HTMLElement>(
@@ -108,9 +114,14 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
     if (!section) {
       return;
     }
-    didNudgeComments = true;
-    // Lazy comments often need a scroll before threads hydrate.
-    // 遅延コメントはスクロールで水和されることが多い。
+    const rect = section.getBoundingClientRect();
+    const inView =
+      rect.bottom > 0 &&
+      rect.top < (window.innerHeight || document.documentElement.clientHeight);
+    if (inView) {
+      return;
+    }
+    nudgeAttempts += 1;
     section.scrollIntoView({ block: "nearest", behavior: "auto" });
   }
 
