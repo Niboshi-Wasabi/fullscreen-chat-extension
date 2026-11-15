@@ -18,7 +18,10 @@ import {
   saveSettings,
   type DisplayMode,
 } from "../shared/settings";
-import { resolvePopoutTargetForPolicy } from "../shared/site-ids";
+import {
+  extractYouTubeVideoId,
+  resolvePopoutTargetForPolicy,
+} from "../shared/site-ids";
 import { POPOUT_OPEN_TYPE } from "../shared/runtime-messages";
 import { startPlayerChrome } from "../views/player-chrome";
 
@@ -90,19 +93,30 @@ function runYouTubeTopFrame(): () => void {
   const runtime = createRuntimeController(startYouTubeRuntimeForPage);
   const stopPlayerChrome = startPlayerChrome("youtube");
   const stopCommands = bindCommandListener();
-  const restart = () => {
+  // Theater/fullscreen fires yt-page-data-updated without changing the video —
+  // only restart when the watch identity changes (ISS-023).
+  // シアター／全画面でも page-data-updated が飛ぶが、動画が同じなら再起動しない。
+  let lastWatchKey = "";
+  const restartIfWatchChanged = () => {
+    const key =
+      extractYouTubeVideoId(location.href) ??
+      `${location.pathname}${location.search}`;
+    if (key === lastWatchKey) {
+      return;
+    }
+    lastWatchKey = key;
     void runtime.restart();
   };
   // Firefox tab teardown interrupted the previous JS removal loop before stop().
   // Keep both navigation subscriptions under one native cancellation operation.
   const navigation = new AbortController();
-  window.addEventListener("yt-navigate-finish", restart, {
+  window.addEventListener("yt-navigate-finish", restartIfWatchChanged, {
     signal: navigation.signal,
   });
-  window.addEventListener("yt-page-data-updated", restart, {
+  window.addEventListener("yt-page-data-updated", restartIfWatchChanged, {
     signal: navigation.signal,
   });
-  restart();
+  restartIfWatchChanged();
   return () => {
     navigation.abort();
     stopCommands();

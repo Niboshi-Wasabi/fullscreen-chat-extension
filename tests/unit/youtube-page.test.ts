@@ -5,6 +5,7 @@ import {
   isYouTubeWatchWithComments,
   isYouTubeWatchWithLiveChat,
 } from "../../src/shared/youtube-page";
+import { resolveYouTubePageChatFrameSrc } from "../../src/shared/site-ids";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -122,5 +123,28 @@ describe("YouTube page mode detection (ISS-021)", () => {
     });
     expect(isYouTubeLiveNow()).toBe(false);
     expect(isYouTubeWatchWithComments()).toBe(true);
+  });
+});
+
+describe("YouTube page chatframe preference (ISS-022)", () => {
+  it("returns the hydrated chatframe src and ignores about:blank", () => {
+    const doc = {
+      querySelector: (selector: string) => {
+        if (selector.includes("iframe#chatframe")) {
+          return {
+            src: "https://www.youtube.com/live_chat?v=abc&dark_theme=1",
+          };
+        }
+        return null;
+      },
+    } as unknown as Document;
+    expect(resolveYouTubePageChatFrameSrc(doc)).toBe(
+      "https://www.youtube.com/live_chat?v=abc&dark_theme=1",
+    );
+
+    const blank = {
+      querySelector: () => ({ src: "about:blank" }),
+    } as unknown as Document;
+    expect(resolveYouTubePageChatFrameSrc(blank)).toBeNull();
   });
 });

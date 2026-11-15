@@ -30,6 +30,9 @@ export interface NormalizedMessage {
   timestampMs: number;
   role: MessageRole;
   badges: string[];
+  /** Badge images when available (self-rendered panel; ISS-024).
+   * 取得できたバッジ画像（自前パネル表示用）。 */
+  badgeIcons?: { src: string; alt: string }[];
   /** True when message looks like !command / `!` コマンドらしいとき */
   isCommand: boolean;
   /** Threaded comments that can open a native reply box / 公式返信 UI を開ける通常コメント */

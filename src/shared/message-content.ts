@@ -49,9 +49,20 @@ function walk(node: Node, out: MessageSegment[]): void {
   // YT カスタム絵文字はラッパー内に img があることが多い。
   if (
     node.matches(
-      "img, yt-live-chat-emoji, .emoji, .chat-image, .chat-line__message--emote",
+      [
+        "img",
+        "yt-live-chat-emoji",
+        ".emoji",
+        ".chat-image",
+        ".chat-line__message--emote",
+        ".chat-line__message--emote-button",
+        "img.chat-line__message--emote",
+        "[data-a-target='emote-name']",
+        ".vod-message img",
+      ].join(", "),
     ) ||
-    node.tagName.toLowerCase().includes("emoji")
+    node.tagName.toLowerCase().includes("emoji") ||
+    node.tagName.toLowerCase().includes("emote")
   ) {
     const img =
       node instanceof HTMLImageElement ? node : node.querySelector("img");
