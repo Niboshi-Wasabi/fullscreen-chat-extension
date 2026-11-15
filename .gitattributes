@@ -1,0 +1,13 @@
+# Keep text as LF so Prettier endOfLine:lf matches CI Windows checkouts.
+# テキストは LF 固定。CI Windows でも Prettier と一致させる。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.crx binary
+*.zip binary
