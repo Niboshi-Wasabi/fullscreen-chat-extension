@@ -102,13 +102,26 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
     if (didNudgeComments) {
       return;
     }
+    // Already hydrated — do not yank the viewport (forced comments UI).
+    // 既に水和済みならビューポートを動かさない（コメント面への強制遷移防止）。
+    if (document.querySelector(COMMENT_SELECTORS)) {
+      didNudgeComments = true;
+      return;
+    }
     const section = document.querySelector<HTMLElement>(
       "#comments, ytd-comments, ytd-item-section-renderer#sections",
     );
     if (!section) {
       return;
     }
+    const rect = section.getBoundingClientRect();
+    const inView =
+      rect.bottom > 0 &&
+      rect.top < (window.innerHeight || document.documentElement.clientHeight);
     didNudgeComments = true;
+    if (inView) {
+      return;
+    }
     // Lazy comments often need a scroll before threads hydrate.
     // 遅延コメントはスクロールで水和されることが多い。
     section.scrollIntoView({ block: "nearest", behavior: "auto" });

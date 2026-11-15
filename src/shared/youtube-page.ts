@@ -53,54 +53,36 @@ export function isYouTubeLiveNow(): boolean {
   return isYouTubeLiveNowStrict();
 }
 
+/**
+ * Active live only — explicit UI or /live/ without replay.
+ * Do not treat isLiveBroadcast meta or a lone chatframe as live; ended VODs
+ * and "chat disabled" frames must fall through to comments (ISS-021).
+ * 進行中ライブのみ。meta／chatframe 単独はライブにしない（ISS-021）。
+ */
 function isYouTubeLiveNowStrict(): boolean {
   if (!isYouTubeHost() || isYouTubeLiveChatContext()) {
     return false;
   }
-  if (location.pathname.startsWith("/live/")) {
-    // /live/ URL can still be an ended premiere with replay.
-    // /live/ でも終了済み＋リプレイのことがある。
-    if (hasChatReplayOnly()) {
-      return false;
-    }
-    return true;
-  }
-
-  const liveMeta = document.querySelector(
-    'meta[itemprop="isLiveBroadcast"][content="True"], meta[itemprop="isLiveBroadcast"][content="true"]',
-  );
-  if (liveMeta && !hasChatReplayOnly()) {
-    return true;
-  }
-
-  if (document.querySelector(".badge-style-type-live-now, .ytp-live")) {
-    if (!hasChatReplayOnly()) {
-      return true;
-    }
-  }
-
-  const liveBadge = document.querySelector<HTMLElement>(".ytp-live-badge");
-  if (liveBadge) {
-    const style = window.getComputedStyle(liveBadge);
-    const disabled = liveBadge.hasAttribute("disabled");
-    if (
-      !disabled &&
-      style.display !== "none" &&
-      style.visibility !== "hidden"
-    ) {
-      if (!hasChatReplayOnly()) {
-        return true;
-      }
-    }
-  }
-
   if (hasChatReplayOnly()) {
     return false;
   }
+  if (location.pathname.startsWith("/live/")) {
+    return true;
+  }
+  return hasVisibleLiveUi();
+}
 
-  return Boolean(
-    document.querySelector("ytd-live-chat-frame iframe, iframe#chatframe"),
-  );
+function hasVisibleLiveUi(): boolean {
+  if (document.querySelector(".badge-style-type-live-now, .ytp-live")) {
+    return true;
+  }
+  const liveBadge = document.querySelector<HTMLElement>(".ytp-live-badge");
+  if (!liveBadge) {
+    return false;
+  }
+  const style = window.getComputedStyle(liveBadge);
+  const disabled = liveBadge.hasAttribute("disabled");
+  return !disabled && style.display !== "none" && style.visibility !== "hidden";
 }
 
 /** Live now OR chat-replay archive — uses the live-chat adapter path.
