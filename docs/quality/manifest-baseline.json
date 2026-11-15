@@ -1,0 +1,37 @@
+{
+  "permissions": [
+    "storage",
+    "windows"
+  ],
+  "host_permissions": [
+    "*://www.youtube.com/*",
+    "*://youtube.com/*",
+    "*://www.twitch.tv/*",
+    "*://twitch.tv/*",
+    "*://api.betterttv.net/*",
+    "*://cdn.betterttv.net/*",
+    "*://api.frankerfacez.com/*",
+    "*://cdn.frankerfacez.com/*",
+    "*://7tv.io/*",
+    "*://cdn.7tv.app/*"
+  ],
+  "content_matches": [
+    "*://twitch.tv/*",
+    "*://www.twitch.tv/*",
+    "*://www.youtube.com/*",
+    "*://youtube.com/*"
+  ],
+  "gecko": {
+    "id": "fullscreen-chat-extension@niboshi.dev",
+    "strict_min_version": "121.0"
+  },
+  "bundled_assets": [
+    "fonts/GoogleSansFlex-latin.woff2",
+    "fonts/GoogleSansFlex-latin-ext.woff2",
+    "fonts/MaterialSymbolsOutlined.woff2",
+    "fonts/MaterialSymbols-LICENSE.txt"
+  ],
+  "content_js": [
+    "content-scripts/content.js"
+  ]
+}

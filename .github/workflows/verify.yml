@@ -1,0 +1,68 @@
+name: Quality gates
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify-windows
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out all fetched history without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.23.2"
+          package-manager-cache: false
+      - name: Install pinned pnpm
+        run: npm.cmd install --global pnpm@11.9.0 --ignore-scripts
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm.cmd install --frozen-lockfile --ignore-scripts
+      - name: Run local and security gates with mandatory history
+        run: pnpm.cmd verify:ci
+      - name: Save diagnostic summaries
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: quality-results-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            .harness-artifacts/verify-results.json
+            .harness-artifacts/test-results.xml
+            .harness-artifacts/audit-summary.json
+            .harness-artifacts/secrets-summary.json
+            .harness-artifacts/workflow-summary.json
+            .harness-artifacts/e2e-results.json
+            .harness-artifacts/e2e-junit.xml
+            .harness-artifacts/e2e-results/
+            .harness-artifacts/e2e-report/
+      - name: Save verified unreleased browser builds
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-builds-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            .output/chrome-mv3/
+            .output/firefox-mv3/

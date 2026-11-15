@@ -1,0 +1,9 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Fullscreen Chat">
+  <rect x="1" y="1" width="126" height="126" rx="20" fill="#101820"/>
+  <path fill="#3e94ec" d="M8 8h30v11H19v19H8V8zm112 0v30h-11V19H90V8h30zM8 120v-30h11v19h19v11H8zm112 0H90v-11h19V90h11v30z"/>
+  <rect x="26" y="32" width="76" height="52" rx="12" fill="#ecf2f8"/>
+  <path fill="#ecf2f8" d="M40 80l-7 18 24-18z"/>
+  <rect x="38" y="44" width="46" height="7" rx="3.5" fill="#0b6bcb"/>
+  <rect x="38" y="58" width="34" height="7" rx="3.5" fill="#0b6bcb"/>
+  <rect x="38" y="72" width="24" height="7" rx="3.5" fill="#0b6bcb"/>
+</svg>

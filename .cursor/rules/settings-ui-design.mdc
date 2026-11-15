@@ -1,0 +1,10 @@
+---
+description: Settings/popup UI design; read the shared design source before editing
+globs: src/entrypoints/**/*.{html,css,ts}, public/**/*.{html,css}
+alwaysApply: false
+---
+
+# Settings UI design
+
+ポップアップ・オプション・関連静的ページの変更前に、[共通デザイン原則](../../docs/design/settings-ui.md)と[設定一覧](../../docs/settings-inventory.md)を読む。
+UI原則の正本はdocs側に置き、このルールへ複製しない。オーバーレイや弾幕への適用範囲は正本を参照。

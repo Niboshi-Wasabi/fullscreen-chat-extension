@@ -1,0 +1,11 @@
+.tmp-extensions/
+node_modules/
+.output/
+.wxt/
+dist/
+*.crx
+*.zip
+.harness-artifacts/
+.harness-tools/
+.DS_Store
+Thumbs.db

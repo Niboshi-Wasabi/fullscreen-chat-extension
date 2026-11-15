@@ -1,0 +1,12 @@
+---
+description: Trust boundaries, errors and resource lifecycle; read common repository guidance
+alwaysApply: true
+---
+
+# Shared project guidance
+
+最初に [AGENTS.md](../../AGENTS.md) と [docs/quality/code-principles.md](../../docs/quality/code-principles.md) を読む。
+信頼境界・失敗・資源解放は共通原則、通信・権限はセキュリティ文書に従う。
+実装と独立レビューの役割は依頼から判断し、製品名だけで決めない。
+
+[セキュリティ方針](../../docs/operations/security.md)も変更に応じて読む。

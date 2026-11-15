@@ -1,0 +1,10 @@
+node_modules/
+.output/
+.wxt/
+.tmp-extensions/
+.harness-artifacts/
+.harness-tools/
+pnpm-lock.yaml
+public/fonts/
+public/icon/
+scripts/locale-catalogs/

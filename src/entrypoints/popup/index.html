@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fullscreen Chat</title>
+    <link rel="stylesheet" href="../../ui/chrome.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="fce-popup">
+    <header class="fce-popup-header">
+      <span class="ms" aria-hidden="true">chat_bubble</span>
+      <h1 data-i18n="appName">Fullscreen Chat</h1>
+    </header>
+
+    <main>
+      <div class="fce-section-card">
+        <div class="fce-row">
+          <span class="ms ms-sm fce-row-icon" aria-hidden="true">tune</span>
+          <div class="fce-row-text">
+            <span id="enabled-label" class="fce-row-title" data-i18n="enabled"
+              >Enabled</span
+            >
+          </div>
+          <label class="fce-switch fce-control">
+            <input
+              aria-labelledby="enabled-label"
+              id="enabled"
+              type="checkbox"
+              role="switch"
+            />
+            <span class="fce-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <div class="fce-row">
+          <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+            >desktop_windows</span
+          >
+          <div class="fce-row-text">
+            <span class="fce-row-title" data-i18n="mode">Mode</span>
+          </div>
+          <div
+            class="fce-segmented fce-control"
+            role="radiogroup"
+            aria-labelledby="modeLabel"
+          >
+            <span id="modeLabel" class="visually-hidden" data-i18n="mode"
+              >Display mode</span
+            >
+            <label>
+              <input type="radio" name="displayMode" value="panel" />
+              <span data-i18n="modePanel">Panel</span>
+            </label>
+            <label>
+              <input type="radio" name="displayMode" value="popout" />
+              <span data-i18n="modePopout">Popout</span>
+            </label>
+            <label>
+              <input type="radio" name="displayMode" value="danmaku" />
+              <span data-i18n="modeDanmaku">Danmaku</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="fce-section-card">
+        <div class="fce-row">
+          <span
+            class="fce-site-icon fce-row-icon"
+            data-site-icon="youtube-live"
+            aria-hidden="true"
+          ></span>
+          <div class="fce-row-text">
+            <span
+              id="youtubeLive-label"
+              class="fce-row-title"
+              data-i18n="youtubeLive"
+              >YouTube Live / Replay</span
+            >
+          </div>
+          <label class="fce-switch fce-control">
+            <input
+              aria-labelledby="youtubeLive-label"
+              id="youtubeLive"
+              type="checkbox"
+              role="switch"
+            />
+            <span class="fce-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="fce-row">
+          <span
+            class="fce-site-icon fce-row-icon"
+            data-site-icon="youtube-comments"
+            aria-hidden="true"
+          ></span>
+          <div class="fce-row-text">
+            <span
+              id="youtubeComments-label"
+              class="fce-row-title"
+              data-i18n="youtubeComments"
+              >YouTube Comments</span
+            >
+          </div>
+          <label class="fce-switch fce-control">
+            <input
+              aria-labelledby="youtubeComments-label"
+              id="youtubeComments"
+              type="checkbox"
+              role="switch"
+            />
+            <span class="fce-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="fce-row">
+          <span
+            class="fce-site-icon fce-row-icon"
+            data-site-icon="twitch"
+            aria-hidden="true"
+          ></span>
+          <div class="fce-row-text">
+            <span id="twitch-label" class="fce-row-title" data-i18n="twitch"
+              >Twitch</span
+            >
+          </div>
+          <label class="fce-switch fce-control">
+            <input
+              aria-labelledby="twitch-label"
+              id="twitch"
+              type="checkbox"
+              role="switch"
+            />
+            <span class="fce-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="fce-section-card">
+        <div class="fce-row">
+          <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+            >translate</span
+          >
+          <div class="fce-row-text">
+            <span class="fce-row-title" data-i18n="uiLocale">Language</span>
+          </div>
+          <select
+            id="uiLocale"
+            class="fce-select fce-control"
+            data-i18n-title="uiLocale"
+            aria-label="Language"
+          >
+            <option value="auto" data-i18n="localeAuto">Auto</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="openOptions" class="fce-btn fce-btn-secondary" type="button">
+        <span class="ms ms-sm" aria-hidden="true">settings</span>
+        <span data-i18n="openOptions">Open options</span>
+      </button>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

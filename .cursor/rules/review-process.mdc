@@ -1,0 +1,12 @@
+---
+description: Independent review roles, severity and correction loop; read common repository guidance
+alwaysApply: true
+---
+
+# Shared project guidance
+
+最初に [AGENTS.md](../../AGENTS.md) と [docs/quality/workflow.md](../../docs/quality/workflow.md) を読む。
+独立レビュー担当は明示的な修正許可なしにソース・設定・テストを変更しない。指摘は実装担当へ返す。
+実装と独立レビューの役割は依頼から判断し、製品名だけで決めない。
+
+[レビュー書式](../../docs/quality/review-template.md)と[品質基準](../../docs/quality/standards.md)を参照する。自己確認は独立レビューではない。Critical / Major / Minorが残る場合、マージ・公開可能と判定しない。

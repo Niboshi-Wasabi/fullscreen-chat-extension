@@ -1,0 +1,56 @@
+body.fce-popup {
+  min-width: 440px;
+  max-width: 520px;
+  width: 480px;
+  /* Keep essentials above the fold — no popup scroll / スクロール不要な分量に抑える */
+  overflow: hidden;
+}
+
+.fce-popup-header {
+  display: flex;
+  align-items: center;
+  gap: var(--fce-space-2);
+  padding: var(--fce-space-4) var(--fce-space-4) var(--fce-space-2);
+}
+
+.fce-popup-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.fce-popup-header .ms {
+  color: var(--fce-accent);
+}
+
+main {
+  display: grid;
+  gap: var(--fce-space-3);
+  padding: 0 var(--fce-space-4) var(--fce-space-4);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Mode segments stay compact beside the label / モードはラベル横でコンパクトに */
+.fce-popup .fce-segmented span {
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.fce-popup .fce-row > select.fce-select.fce-control {
+  max-width: 14rem;
+}
+
+.fce-btn {
+  width: 100%;
+}

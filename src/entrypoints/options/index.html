@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="manifest.open_in_tab" content="true" />
+    <title>Fullscreen Chat — Options</title>
+    <link rel="stylesheet" href="../../ui/chrome.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="fce-options">
+    <aside class="fce-sidebar">
+      <div class="fce-brand">
+        <span class="ms" aria-hidden="true">chat_bubble</span>
+        <div>
+          <strong data-i18n="appName">Fullscreen Chat</strong>
+        </div>
+      </div>
+      <nav
+        class="fce-nav"
+        data-i18n-title="navAria"
+        aria-label="Settings categories"
+      >
+        <button
+          type="button"
+          class="fce-nav-item"
+          data-tab="general"
+          aria-current="page"
+        >
+          <span class="ms" aria-hidden="true">tune</span>
+          <span data-i18n="navGeneral">General</span>
+        </button>
+        <button type="button" class="fce-nav-item" data-tab="display">
+          <span class="ms" aria-hidden="true">desktop_windows</span>
+          <span data-i18n="navDisplay">Display</span>
+        </button>
+        <button type="button" class="fce-nav-item" data-tab="filter">
+          <span class="ms" aria-hidden="true">filter_alt</span>
+          <span data-i18n="navFilter">Filter</span>
+        </button>
+        <button type="button" class="fce-nav-item" data-tab="archive">
+          <span class="ms" aria-hidden="true">sync</span>
+          <span data-i18n="navArchive">Archive</span>
+        </button>
+        <button type="button" class="fce-nav-item" data-tab="legal">
+          <span class="ms" aria-hidden="true">policy</span>
+          <span data-i18n="navLegal">Legal</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="fce-main">
+      <header class="fce-main-header">
+        <div>
+          <h1 id="panelTitle" data-i18n="navGeneral">General</h1>
+          <p id="status" class="fce-status" role="status"></p>
+        </div>
+      </header>
+
+      <!-- General — enable / mode / sites / language live in the toolbar popup -->
+      <section class="fce-panel is-active" data-panel="general">
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionCompose">Compose</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >chat_bubble</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="composeEnabled-label"
+                  class="fce-row-title"
+                  data-i18n="composeEnabled"
+                  >Compose</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="composeEnabled-label"
+                  id="composeEnabled"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >shield</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="composeSteal-label"
+                  class="fce-row-title"
+                  data-i18n="composeSteal"
+                  >Capture shortcuts while typing</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="composeSteal-label"
+                  id="composeSteal"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionShortcuts">
+            Shortcuts
+          </h2>
+          <div class="fce-section-card">
+            <p class="fce-shortcut-list" data-i18n="shortcutsHelp">
+              Alt+Shift+C toggle · M mode · D danmaku · P popout
+            </p>
+          </div>
+        </div>
+
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionTools">Tools</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >download</span
+              >
+              <div class="fce-row-text">
+                <span class="fce-row-title" data-i18n="toolsExport"
+                  >Export settings</span
+                >
+                <span class="fce-row-hint" data-i18n="toolsExportHint"
+                  >Download a JSON backup</span
+                >
+              </div>
+              <button
+                type="button"
+                id="toolsExport"
+                class="fce-button fce-control"
+                data-i18n="toolsExport"
+              >
+                Export settings
+              </button>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >upload</span
+              >
+              <div class="fce-row-text">
+                <span class="fce-row-title" data-i18n="toolsImport"
+                  >Import settings</span
+                >
+                <span class="fce-row-hint" data-i18n="toolsImportHint"
+                  >Replace from a JSON backup</span
+                >
+              </div>
+              <button
+                type="button"
+                id="toolsImport"
+                class="fce-button fce-control"
+                data-i18n="toolsImport"
+              >
+                Import settings
+              </button>
+              <input
+                id="toolsImportFile"
+                type="file"
+                accept="application/json,.json"
+                hidden
+              />
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >restart_alt</span
+              >
+              <div class="fce-row-text">
+                <span class="fce-row-title" data-i18n="toolsReset"
+                  >Reset to defaults</span
+                >
+                <span class="fce-row-hint" data-i18n="toolsResetHint"
+                  >Clears NG lists and custom values</span
+                >
+              </div>
+              <button
+                type="button"
+                id="toolsReset"
+                class="fce-button fce-control"
+                data-i18n="toolsReset"
+              >
+                Reset to defaults
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Display -->
+      <section class="fce-panel" data-panel="display" hidden>
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionPanel">Panel</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >view_sidebar</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelAnchor-label"
+                  class="fce-row-title"
+                  data-i18n="panelAnchor"
+                  >Anchor</span
+                >
+              </div>
+              <select
+                aria-labelledby="panelAnchor-label"
+                id="panelAnchor"
+                class="fce-select fce-control"
+              >
+                <option value="right" data-i18n="panelAnchorRight">
+                  Right
+                </option>
+                <option value="left" data-i18n="panelAnchorLeft">Left</option>
+              </select>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >format_size</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelWidth-label"
+                  class="fce-row-title"
+                  data-i18n="panelWidth"
+                  >Width</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="panelWidth-label"
+                  id="panelWidth"
+                  type="range"
+                  min="0.15"
+                  max="0.4"
+                  step="0.01"
+                />
+                <span class="fce-badge" data-badge-for="panelWidth">22%</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >opacity</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelOpacity-label"
+                  class="fce-row-title"
+                  data-i18n="panelOpacity"
+                  >Opacity</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="panelOpacity-label"
+                  id="panelOpacity"
+                  type="range"
+                  min="0.2"
+                  max="1"
+                  step="0.05"
+                />
+                <span class="fce-badge" data-badge-for="panelOpacity">85%</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >format_size</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelFont-label"
+                  class="fce-row-title"
+                  data-i18n="panelFont"
+                  >Font size</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="panelFont-label"
+                  id="panelFont"
+                  type="range"
+                  min="10"
+                  max="28"
+                  step="1"
+                />
+                <span class="fce-badge" data-badge-for="panelFont">14px</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >person</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelShowAuthor-label"
+                  class="fce-row-title"
+                  data-i18n="panelShowAuthor"
+                  >Show author</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="panelShowAuthor-label"
+                  id="panelShowAuthor"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >shield</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelShowBadges-label"
+                  class="fce-row-title"
+                  data-i18n="panelShowBadges"
+                  >Show badges</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="panelShowBadges-label"
+                  id="panelShowBadges"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >opacity</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelIdleFade-label"
+                  class="fce-row-title"
+                  data-i18n="panelIdleFade"
+                  >Fade when idle</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="panelIdleFade-label"
+                  id="panelIdleFade"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >desktop_windows</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelAllowPointer-label"
+                  class="fce-row-title"
+                  data-i18n="panelAllowPointer"
+                  >Receive pointer input</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="panelAllowPointer-label"
+                  id="panelAllowPointer"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >open_in_new</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="panelUseNative-label"
+                  class="fce-row-title"
+                  data-i18n="panelUseNative"
+                  >Prefer official chat UI</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="panelUseNative-label"
+                  id="panelUseNative"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionDanmaku">Danmaku</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >subtitles</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuEnabled-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuEnabled"
+                  >Enabled</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="danmakuEnabled-label"
+                  id="danmakuEnabled"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >subtitles</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuOverlay-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuOverlay"
+                  >Overlay danmaku on panel</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="danmakuOverlay-label"
+                  id="danmakuOverlay"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >speed</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuSpeed-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuSpeed"
+                  >Duration</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="danmakuSpeed-label"
+                  id="danmakuSpeed"
+                  type="range"
+                  min="2"
+                  max="20"
+                  step="1"
+                />
+                <span class="fce-badge" data-badge-for="danmakuSpeed">8s</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >opacity</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuOpacity-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuOpacity"
+                  >Opacity</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="danmakuOpacity-label"
+                  id="danmakuOpacity"
+                  type="range"
+                  min="0.3"
+                  max="1"
+                  step="0.02"
+                />
+                <span class="fce-badge" data-badge-for="danmakuOpacity"
+                  >92%</span
+                >
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >format_size</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuFont-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuFont"
+                  >Font size</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="danmakuFont-label"
+                  id="danmakuFont"
+                  type="range"
+                  min="16"
+                  max="64"
+                  step="1"
+                />
+                <span class="fce-badge" data-badge-for="danmakuFont">32px</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >density_medium</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuMaxLines-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuMaxLines"
+                  >Max lines (soft)</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="danmakuMaxLines-label"
+                  id="danmakuMaxLines"
+                  type="range"
+                  min="8"
+                  max="60"
+                  step="1"
+                />
+                <span class="fce-badge" data-badge-for="danmakuMaxLines"
+                  >40</span
+                >
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >density_medium</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuDensity-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuDensity"
+                  >Density</span
+                >
+              </div>
+              <select
+                aria-labelledby="danmakuDensity-label"
+                id="danmakuDensity"
+                class="fce-select fce-control"
+              >
+                <option value="low" data-i18n="densityLow">Low</option>
+                <option value="mid" data-i18n="densityMid">Mid</option>
+                <option value="high" data-i18n="densityHigh">High</option>
+              </select>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >format_size</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuOutline-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuOutline"
+                  >Outline</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="danmakuOutline-label"
+                  id="danmakuOutline"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >person</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuShowAuthor-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuShowAuthor"
+                  >Show author</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="danmakuShowAuthor-label"
+                  id="danmakuShowAuthor"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >view_sidebar</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="danmakuSafeZone-label"
+                  class="fce-row-title"
+                  data-i18n="danmakuSafeZone"
+                  >Bottom safe zone</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="danmakuSafeZone-label"
+                  id="danmakuSafeZone"
+                  type="range"
+                  min="0"
+                  max="0.25"
+                  step="0.01"
+                />
+                <span class="fce-badge" data-badge-for="danmakuSafeZone"
+                  >6%</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionSites">Sites</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >sentiment_satisfied</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="twitchThirdPartyEmotes-label"
+                  class="fce-row-title"
+                  data-i18n="twitchThirdPartyEmotes"
+                  >BTTV / FFZ / 7TV emotes</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="twitchThirdPartyEmotes-label"
+                  id="twitchThirdPartyEmotes"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true">sort</span>
+              <div class="fce-row-text">
+                <span
+                  id="ytCommentsSort-label"
+                  class="fce-row-title"
+                  data-i18n="ytCommentsSort"
+                  >Comment sort</span
+                >
+              </div>
+              <select
+                aria-labelledby="ytCommentsSort-label"
+                id="ytCommentsSort"
+                class="fce-select fce-control"
+              >
+                <option value="top" data-i18n="ytCommentsSortTop">Top</option>
+                <option value="newest" data-i18n="ytCommentsSortNew">
+                  Newest
+                </option>
+              </select>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >expand_more</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="ytCommentsLoadMore-label"
+                  class="fce-row-title"
+                  data-i18n="ytCommentsLoadMore"
+                  >Load more comments</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="ytCommentsLoadMore-label"
+                  id="ytCommentsLoadMore"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="fce-section">
+          <h2 class="fce-section-title" data-i18n="sectionPopout">Popout</h2>
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >open_in_new</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="popoutOpenPolicy-label"
+                  class="fce-row-title"
+                  data-i18n="popoutPolicy"
+                  >Open policy</span
+                >
+              </div>
+              <select
+                aria-labelledby="popoutOpenPolicy-label"
+                id="popoutOpenPolicy"
+                class="fce-select fce-control"
+              >
+                <option value="currentLive" data-i18n="popoutCurrentLive">
+                  Current live only
+                </option>
+                <option value="anyWatchPage" data-i18n="popoutAnyPage">
+                  Any watch / channel page
+                </option>
+              </select>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true">save</span>
+              <div class="fce-row-text">
+                <span
+                  id="popoutRememberSite-label"
+                  class="fce-row-title"
+                  data-i18n="popoutRememberSite"
+                  >Remember size per site</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="popoutRememberSite-label"
+                  id="popoutRememberSite"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >desktop_windows</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="popoutAlwaysOnTop-label"
+                  class="fce-row-title"
+                  data-i18n="popoutAlwaysOnTop"
+                  >Always on top</span
+                >
+                <span class="fce-row-hint" data-i18n="popoutAlwaysOnTopHint"
+                  >Uses Document PiP when available. Normal OS popouts cannot
+                  stay on top in Chrome.</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="popoutAlwaysOnTop-label"
+                  id="popoutAlwaysOnTop"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Filter -->
+      <section class="fce-panel" data-panel="filter" hidden>
+        <div class="fce-section">
+          <div class="fce-section-card">
+            <div class="fce-row fce-row-stack">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >filter_alt</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="ngWords-label"
+                  class="fce-row-title"
+                  data-i18n="ngWords"
+                  >NG words</span
+                >
+              </div>
+              <textarea
+                aria-labelledby="ngWords-label"
+                id="ngWords"
+                class="fce-textarea fce-control"
+                rows="6"
+                data-i18n-placeholder="ngWordsPlaceholder"
+              ></textarea>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >filter_alt</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="ngRegex-label"
+                  class="fce-row-title"
+                  data-i18n="ngRegex"
+                  >Regular expressions</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="ngRegex-label"
+                  id="ngRegex"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row fce-row-stack">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >block</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="blockedUsers-label"
+                  class="fce-row-title"
+                  data-i18n="blockedUsers"
+                  >Blocked users</span
+                >
+              </div>
+              <textarea
+                aria-labelledby="blockedUsers-label"
+                id="blockedUsers"
+                class="fce-textarea fce-control"
+                rows="4"
+                data-i18n-placeholder="blockedUsersPlaceholder"
+              ></textarea>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >filter_alt</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="hideCommands-label"
+                  class="fce-row-title"
+                  data-i18n="hideCommands"
+                  >Hide !commands</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="hideCommands-label"
+                  id="hideCommands"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >block</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="hideBots-label"
+                  class="fce-row-title"
+                  data-i18n="hideBots"
+                  >Hide known bots</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="hideBots-label"
+                  id="hideBots"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >shield</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="protectRoles-label"
+                  class="fce-row-title"
+                  data-i18n="protectRoles"
+                  >Protect mods / owner from thinning</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="protectRoles-label"
+                  id="protectRoles"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >density_medium</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="maxVisible-label"
+                  class="fce-row-title"
+                  data-i18n="maxVisible"
+                  >Max visible in panel</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="maxVisible-label"
+                  id="maxVisible"
+                  type="range"
+                  min="20"
+                  max="500"
+                  step="10"
+                />
+                <span class="fce-badge" data-badge-for="maxVisible">100</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >web_asset</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="filterNativeChat-label"
+                  class="fce-row-title"
+                  data-i18n="filterNativeChat"
+                  >Also filter official chat UI</span
+                >
+                <span class="fce-row-hint" data-i18n="filterNativeChatHint"
+                  >Hide NG matches inside YouTube / Twitch official chat
+                  embeds</span
+                >
+              </div>
+              <label class="fce-switch fce-control">
+                <input
+                  aria-labelledby="filterNativeChat-label"
+                  id="filterNativeChat"
+                  type="checkbox"
+                  role="switch"
+                />
+                <span class="fce-switch-track" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Archive -->
+      <section class="fce-panel" data-panel="archive" hidden>
+        <div class="fce-section">
+          <div class="fce-section-card">
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true">sync</span>
+              <div class="fce-row-text">
+                <span
+                  id="archiveOffset-label"
+                  class="fce-row-title"
+                  data-i18n="archiveOffset"
+                  >Sync offset</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="archiveOffset-label"
+                  id="archiveOffset"
+                  type="range"
+                  min="-30"
+                  max="30"
+                  step="0.5"
+                />
+                <span class="fce-badge" data-badge-for="archiveOffset">0s</span>
+              </div>
+            </div>
+            <div class="fce-row">
+              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
+                >speed</span
+              >
+              <div class="fce-row-text">
+                <span
+                  id="archiveSkew-label"
+                  class="fce-row-title"
+                  data-i18n="archiveSkew"
+                  >Max skew</span
+                >
+              </div>
+              <div class="fce-range-wrap fce-control">
+                <input
+                  aria-labelledby="archiveSkew-label"
+                  id="archiveSkew"
+                  type="range"
+                  min="0.5"
+                  max="15"
+                  step="0.5"
+                />
+                <span class="fce-badge" data-badge-for="archiveSkew">2s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Legal -->
+      <section class="fce-panel" data-panel="legal" hidden>
+        <div class="fce-section">
+          <div class="fce-section-card">
+            <p class="fce-legal-copy" data-i18n="danmakuDisclaimerShort">
+              Danmaku is for personal / community use. Unofficial; not
+              affiliated with YouTube, Twitch, or Dwango.
+            </p>
+            <p>
+              <a
+                id="privacyLink"
+                class="fce-link"
+                href="/privacy.html"
+                target="_blank"
+                rel="noreferrer"
+                data-i18n="privacyLink"
+                >Privacy policy</a
+              >
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
