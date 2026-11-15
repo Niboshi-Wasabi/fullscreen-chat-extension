@@ -20,6 +20,7 @@
 | 実装原則 | [コード原則](quality/code-principles.md) | 再現した問題や有効な改善に基づく変更 |
 | 役割・承認・レビュー | [作業フロー](quality/workflow.md)、[レビュー書式](quality/review-template.md) | 手順・役割の変更 |
 | 既知の問題・負債・未決定 | [問題台帳](quality/issues.md) | 発見、解決、判断、再発時 |
+| YT/Twitch 完全対応のパターン母集団 | [content-patterns-2026-11-15.md](quality/content-patterns-2026-11-15.md) | スコープ判断・実サイト検証の母集団変更時 |
 | 変更単位の計画 | [計画テンプレート](plans/TEMPLATE.md)、[ハーネス導入計画](plans/2026-11-14-harness-foundation.md) | 中規模以上の作業とセッション終了時 |
 | ローカル検証基盤の実装 | [Phase 3計画](plans/2026-11-14-verification-foundation.md) | ゲート・証跡の更新時 |
 | CI・セキュリティ基盤の実装 | [Phase 4計画](plans/2026-11-14-ci-quality-gates.md) | ローカル検証とリモート有効化の区別を更新 |
