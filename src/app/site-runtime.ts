@@ -72,16 +72,37 @@ export async function startSiteRuntime(
 
   tryActivate();
 
+  // Brief isSiteActive false (live UI flicker) must not tear down the runtime.
+  // ライブ UI 瞬断だけで runtime を破棄しない（ISS-023 レビュー）。
+  let deactivateTimer: number | null = null;
+  const clearDeactivateTimer = () => {
+    if (deactivateTimer !== null) {
+      window.clearTimeout(deactivateTimer);
+      deactivateTimer = null;
+    }
+  };
   const pageObserver = new MutationObserver(() => {
     if (!active) {
+      clearDeactivateTimer();
       tryActivate();
       return;
     }
-    if (!options.isSiteActive()) {
+    if (options.isSiteActive()) {
+      clearDeactivateTimer();
+      return;
+    }
+    if (deactivateTimer !== null) {
+      return;
+    }
+    deactivateTimer = window.setTimeout(() => {
+      deactivateTimer = null;
+      if (cancelled || !active || options.isSiteActive()) {
+        return;
+      }
       disposeActive?.();
       disposeActive = null;
       active = false;
-    }
+    }, 3000);
   });
   pageObserver.observe(document.documentElement, {
     childList: true,
@@ -91,6 +112,7 @@ export async function startSiteRuntime(
   const unwatch = watchSettings((next) => {
     settings = next;
     if (!options.isSiteEnabled(next) || !next.enabled) {
+      clearDeactivateTimer();
       disposeActive?.();
       disposeActive = null;
       active = false;
@@ -103,6 +125,7 @@ export async function startSiteRuntime(
 
   return () => {
     cancelled = true;
+    clearDeactivateTimer();
     unwatch();
     pageObserver.disconnect();
     disposeActive?.();
@@ -151,8 +174,9 @@ function startActiveRuntime(
       }
       nativeChatRejected = true;
       panel.setNativeChatUrl(null);
-      // Hidden receiver can start now that panel native is cleared.
-      // パネル公式枠を外したので隠し受信を立て直せる。
+      // Clear panel native URL so the list surface shows; adapter interval
+      // recreates the hidden receiver when the panel frame is gone.
+      // パネル公式枠を外して自前リストへ。隠し受信は adapter 側 interval が立て直す。
       ensureRuntimeMounted(getSettings(), options.resolveMountParent());
     },
   });

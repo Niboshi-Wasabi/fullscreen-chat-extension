@@ -2,6 +2,7 @@ import { bindCompose } from "../../shared/compose";
 import type { MessageSegment, NormalizedMessage } from "../../core/message";
 import { ensureLocale, t } from "../../shared/i18n";
 import { NATIVE_CHAT_FRAME_ID } from "../../shared/dom-ids";
+import { isSafeHttpsImageUrl } from "../../shared/safe-image-url";
 import type { ExtensionSettings, PanelBounds } from "../../shared/settings";
 
 const HOST_ID = "fce-overlay-panel-host";
@@ -795,6 +796,12 @@ function appendMessageBody(
       body.appendChild(document.createTextNode(segment.text));
       continue;
     }
+    if (!isSafeHttpsImageUrl(segment.src)) {
+      body.appendChild(
+        document.createTextNode(segment.alt ? `:${segment.alt}:` : "✦"),
+      );
+      continue;
+    }
     const img = document.createElement("img");
     img.className = "fce-panel-emoji";
     img.src = segment.src;
@@ -820,11 +827,18 @@ function renderRow(
     row.appendChild(author);
   }
   if (settings?.panel.showBadges !== false) {
-    const icons = message.badgeIcons?.filter((icon) => icon.src) ?? [];
-    if (icons.length > 0) {
+    const safeIcons =
+      message.badgeIcons?.filter(
+        (icon) => icon.src && isSafeHttpsImageUrl(icon.src),
+      ) ?? [];
+    const iconAlts = new Set(safeIcons.map((icon) => icon.alt));
+    const textBadges = message.badges.filter(
+      (badge) => badge !== "replyable" && !iconAlts.has(badge),
+    );
+    if (safeIcons.length > 0 || textBadges.length > 0) {
       const badge = document.createElement("span");
       badge.className = "fce-panel-badges";
-      for (const icon of icons) {
+      for (const icon of safeIcons) {
         const img = document.createElement("img");
         img.className = "fce-panel-badge-icon";
         img.src = icon.src;
@@ -834,15 +848,13 @@ function renderRow(
         img.decoding = "async";
         badge.appendChild(img);
       }
-      row.appendChild(badge);
-    } else {
-      const badges = message.badges.filter((badge) => badge !== "replyable");
-      if (badges.length) {
-        const badge = document.createElement("span");
-        badge.className = "fce-panel-badges";
-        badge.textContent = badges.join(" · ");
-        row.appendChild(badge);
+      if (textBadges.length > 0) {
+        if (safeIcons.length > 0) {
+          badge.appendChild(document.createTextNode(" · "));
+        }
+        badge.appendChild(document.createTextNode(textBadges.join(" · ")));
       }
+      row.appendChild(badge);
     }
   }
   const body = document.createElement("span");

@@ -127,6 +127,9 @@ function runYouTubeTopFrame(): () => void {
 
 async function startYouTubeRuntimeForPage(): Promise<() => void> {
   let mode: "live" | "comments" | null = null;
+  // Hold live across brief UI flicker on theater/fullscreen (ISS-023 review).
+  // シアター／全画面でライブ UI が一瞬消えてもすぐ comments に落とさない。
+  let leaveLiveConfirmations = 0;
   const runtime = createRuntimeController((signal) =>
     mode === "live"
       ? startYouTubeLiveRuntime(signal)
@@ -135,13 +138,21 @@ async function startYouTubeRuntimeForPage(): Promise<() => void> {
         : Promise.resolve(() => {}),
   );
   const sync = () => {
-    const next = isYouTubeWatchWithLiveChat()
+    const detected = isYouTubeWatchWithLiveChat()
       ? "live"
       : isYouTubeWatchWithComments()
         ? "comments"
         : null;
-    if (next === mode) return;
-    mode = next;
+    if (mode === "live" && detected !== "live") {
+      leaveLiveConfirmations += 1;
+      if (leaveLiveConfirmations < 3) {
+        return;
+      }
+    } else {
+      leaveLiveConfirmations = 0;
+    }
+    if (detected === mode) return;
+    mode = detected;
     void runtime.restart();
   };
   sync();
