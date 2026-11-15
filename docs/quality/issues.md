@@ -26,11 +26,13 @@
 
 ## ISS-004
 
-- 種類・状態: Git・GitHub配置 / **着手中（2026-11-15）**。
+- 種類・状態: Git・GitHub配置 / **配置・初回CI成功。ブランチ保護はプラン制約で未設定（2026-11-15）**。
 - 根拠: 作業フォルダは既存実装を含むが、初回調査のgit statusはnot a git repository。GitHub利用はユーザー確認済み。
 - 2026-11-14確認: ユーザー回答によりGitHubリポジトリ未作成。CIファイル整備は進め、初回実行と保護設定は未実施として残す。
 - 2026-11-15決定: オーナー指示により本フォルダを正とし、Git 初期化・GitHub 作成・CI 初回実行を実施。リポジトリ名 `fullscreen-chat-extension`、所有者 `Niboshi-Wasabi`、**非公開**（ストア提出前の既定。公開化は別判断）。
-- 解決条件: 既存リポジトリの所在、このフォルダとの関係、公開/非公開・プランを確認。→ 上記で確定。配置・初回 push・保護設定の証跡を追記して閉じる。
+- 実施: `git init` → `main` 初回コミット → https://github.com/Niboshi-Wasabi/fullscreen-chat-extension 。初回 Quality gates 成功 run `43695401625`（`verify-windows`）。`.gitattributes` で LF 固定、Git 対象外証跡への docs リンクを修正。
+- 残: 無料・非公開では Rulesets／ブランチ保護 API が 403（Pro または公開化が必要）。保護を有効にするなら公開化／Pro のオーナー判断が必要。他人の PR 承認要求はしない方針は維持。
+- 解決条件: 既存リポジトリの所在、このフォルダとの関係、公開/非公開・プランを確認。→ 配置と初回CIは完了。保護設定だけオーナー判断待ち。
 
 ## ISS-005
 
@@ -47,11 +49,12 @@
 
 ## ISS-007
 
-- 種類・状態: 自動検証・CI不足 / ローカル基盤・CIファイル・セキュリティ・Chrome合成E2E実装。GitHub実行と全対象の実機確認は未実施。
+- 種類・状態: 自動検証・CI不足 / **GitHub 初回実行成功（2026-11-15）**。ブランチ保護と実サイトは別残。
 - 根拠: package.jsonには型チェック・両ビルドはあるが、統合verify・自動テスト・CIはない。
 - 解決条件: [段階計画](../plans/2026-11-14-harness-foundation.md)のPhase 3〜5を実装し、失敗例でも検証。文書の存在だけで解決扱いにしない。
 - 対応履歴: [Phase 3計画](../plans/2026-11-14-verification-foundation.md)でローカル統合検証と回帰テスト、[Phase 4計画](../plans/2026-11-14-ci-quality-gates.md)でCIファイルと脆弱性/秘密情報検査を導入。当時はGitHub初回実行・保護とブラウザE2Eを残した。
-- Phase 5で[拡張E2E](../operations/browser-verification.md)を導入。署名済みChromeで合成経路を確認。同梱Chromiumの制限はISS-012、Firefox/実サイトとGitHub初回実行は残る。
+- Phase 5で[拡張E2E](../operations/browser-verification.md)を導入。署名済みChromeで合成経路を確認。同梱Chromiumの制限はISS-012。
+- 2026-11-15: `verify:ci` を GitHub Actions（windows-2025）で初回成功。run https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/actions/runs/43695401625 。失敗→修正の証跡: docs リンク（harness）、LF（`.gitattributes`）。保護設定は ISS-004 残。実サイト・Firefox 製品検証は別条件。
 
 ## ISS-008
 

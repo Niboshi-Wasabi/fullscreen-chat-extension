@@ -1,6 +1,6 @@
 # CIとセキュリティ検査
 
-状態: CIファイルとローカル検査を実装。2026-11-15 に Git／GitHub 配置と初回実行を着手（ISS-004／007）。作業履歴は[Phase 4計画](../plans/2026-11-14-ci-quality-gates.md)。
+状態: CIファイルとローカル検査を実装。2026-11-15 に Git／非公開 GitHub 配置と初回 `verify:ci` 成功（ISS-004／007、run `43695401625`）。無料・非公開ではブランチ保護／Rulesets 未設定（Pro または公開化が必要）。作業履歴は[Phase 4計画](../plans/2026-11-14-ci-quality-gates.md)。
 
 ## ローカルの入口
 
@@ -52,12 +52,13 @@ Actionlintは構文と既知入力を検査し、追加の[ポリシー検査](.
 
 ローカル証跡は `.harness-artifacts/`。verify:securityはsecurity-results.json、通常/CIはverify-results.json、各検査はaudit-summary.json・secrets-summary.json・workflow-summary.jsonを記録する。以前のレポートが残る場合があるため、必ず統合結果の各ステップ状態と時刻を合わせて確認する。
 
-## GitHub作成後に残る作業
+## GitHub作成後の作業
 
-1. リポジトリURL、公開/非公開、費用枠と利用プランを確認。Git配置とpushは別の明示許可で行う。
-2. [PRテンプレート](../../.github/pull_request_template.md)に沿い、実際のPRでチェックと診断保存を確認する。未信頼forkの実行はGitHub側の承認制約も確認する。
-3. 利用可能な保護機能で、実際に表示された `verify-windows` の必須チェックを設定し、最新の対象を検証する。失敗例がマージを止めることを確認する。
-4. force-push/削除、直push、管理者の例外の扱いをオーナーが確認する。個人開発で自分のPRに他人の承認を要求する設定にはしない。
-5. 独立レビュー記録と本人の最終判断を残す。CIではレビューの意味や本人の意思を保証できない。
+1. ~~リポジトリURL・公開/非公開~~ → https://github.com/Niboshi-Wasabi/fullscreen-chat-extension （非公開、2026-11-15）。
+2. ~~初回 Actions 実行~~ → Quality gates / `verify-windows` 成功（run `43695401625`）。
+3. [PRテンプレート](../../.github/pull_request_template.md)に沿い、実際のPRでチェックと診断保存を確認する。未信頼forkの実行はGitHub側の承認制約も確認する。
+4. **ブランチ保護（残）**: 無料・非公開では Rulesets API が 403。有効化には **公開化** または **GitHub Pro** のオーナー判断が必要。必須チェック名は `verify-windows`。個人開発で他人の承認要求はしない。
+5. force-push/削除、直push、管理者の例外の扱いをオーナーが確認する。
+6. 独立レビュー記録と本人の最終判断を残す。CIではレビューの意味や本人の意思を保証できない。
 
-上記の実証前は「CI実行済み」「ブランチ保護済み」「Phase 4完了」と報告しない。有料枠・外部契約・認証情報登録は明示許可なしに追加しない。
+「ブランチ保護済み」「Phase 4完了」「公開可能」とは、保護未設定・実サイト未検証の間は報告しない。有料枠・外部契約・認証情報登録・リポジトリ公開化は明示許可なしに追加しない。
