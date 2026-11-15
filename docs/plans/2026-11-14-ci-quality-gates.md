@@ -49,4 +49,4 @@ Actionlintでworkflow構文・入力を検査し、追加の規則で固定SHA�
 
 ## 未解決・次の作業
 
-2026-11-15: Git配置とGitHub初回 `verify:ci` は成功（ISS-004／007）。無料・非公開のためブランチ保護／Rulesetsは未設定（Proまたは公開化が必要）。独立レビューはISS-010。既存のプロダクト要件の未決定をこの作業で承認扱いにしない。
+2026-11-15: Git配置とGitHub初回 `verify:ci` は成功（ISS-004／007）。リポジトリを public 化し、Ruleset＋classic で `verify-windows` 必須・PR 必須（承認 0）を設定。独立レビューはISS-010。既存のプロダクト要件の未決定をこの作業で承認扱いにしない。

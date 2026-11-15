@@ -1,6 +1,6 @@
 # CIとセキュリティ検査
 
-状態: CIファイルとローカル検査を実装。2026-11-15 に Git／非公開 GitHub 配置と初回 `verify:ci` 成功（ISS-004／007、run `43695401625`）。無料・非公開ではブランチ保護／Rulesets 未設定（Pro または公開化が必要）。作業履歴は[Phase 4計画](../plans/2026-11-14-ci-quality-gates.md)。
+状態: CIファイルとローカル検査を実装。2026-11-15 に Git／GitHub（当初非公開→OSS方針で **public**）配置と初回 `verify:ci` 成功（ISS-004／007、run `43695401625`）。`main` に Ruleset＋classic 保護（必須チェック `verify-windows`、PR 必須・承認 0）。作業履歴は[Phase 4計画](../plans/2026-11-14-ci-quality-gates.md)。
 
 ## ローカルの入口
 
@@ -54,11 +54,10 @@ Actionlintは構文と既知入力を検査し、追加の[ポリシー検査](.
 
 ## GitHub作成後の作業
 
-1. ~~リポジトリURL・公開/非公開~~ → https://github.com/Niboshi-Wasabi/fullscreen-chat-extension （非公開、2026-11-15）。
+1. ~~リポジトリURL・可視性~~ → https://github.com/Niboshi-Wasabi/fullscreen-chat-extension （**public**、OSS 方針、2026-11-15）。
 2. ~~初回 Actions 実行~~ → Quality gates / `verify-windows` 成功（run `43695401625`）。
-3. [PRテンプレート](../../.github/pull_request_template.md)に沿い、実際のPRでチェックと診断保存を確認する。未信頼forkの実行はGitHub側の承認制約も確認する。
-4. **ブランチ保護（残）**: 無料・非公開では Rulesets API が 403。有効化には **公開化** または **GitHub Pro** のオーナー判断が必要。必須チェック名は `verify-windows`。個人開発で他人の承認要求はしない。
-5. force-push/削除、直push、管理者の例外の扱いをオーナーが確認する。
-6. 独立レビュー記録と本人の最終判断を残す。CIではレビューの意味や本人の意思を保証できない。
+3. ~~ブランチ保護~~ → Ruleset `main quality gates`（[rules/27304874](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/rules/27304874): 必須 `verify-windows`・削除/force-push 禁止）＋ classic protection（PR 必須・承認 0・`enforce_admins`）。Ruleset の `pull_request` 規則は API が 422 のため classic で担保。
+4. [PRテンプレート](../../.github/pull_request_template.md)に沿い、実際のPRでチェックと診断保存を確認する。未信頼forkの実行はGitHub側の承認制約も確認する。
+5. 独立レビュー記録と本人の最終判断を残す。CIではレビューの意味や本人の意思を保証できない。
 
-「ブランチ保護済み」「Phase 4完了」「公開可能」とは、保護未設定・実サイト未検証の間は報告しない。有料枠・外部契約・認証情報登録・リポジトリ公開化は明示許可なしに追加しない。
+「ストア公開可能」「Phase 4完了」とは、実サイト未検証・独立レビュー待ちの間は報告しない。有料枠・外部契約・認証情報登録は明示許可なしに追加しない。
