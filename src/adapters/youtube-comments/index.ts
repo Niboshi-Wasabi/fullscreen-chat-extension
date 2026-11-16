@@ -3,6 +3,7 @@ import {
   canClickNativeButton,
 } from "../../shared/native-compose";
 import { looksLikeCommand, type NormalizedMessage } from "../../core/message";
+import { COMMENTS_PORTAL_PLACEHOLDER_ID } from "../../shared/dom-ids";
 import { loadSettings } from "../../shared/settings";
 import { isYouTubeWatchWithComments as pageIsComments } from "../../shared/youtube-page";
 import type { SiteAdapter } from "../types";
@@ -100,6 +101,11 @@ export function createYouTubeCommentsAdapter(): SiteAdapter {
   };
 
   function nudgeCommentsIntoView(): void {
+    // Portaled comments must not scroll the page (ISS-026).
+    // ポータル中はページ側への scrollIntoView を抑止する。
+    if (document.getElementById(COMMENTS_PORTAL_PLACEHOLDER_ID)) {
+      return;
+    }
     // Hydrated — nothing to do. Empty in-view sections wait without scrolling.
     // 水和済みなら何もしない。見えているが空ならスクロールせず待機（ISS-021 レビュー）。
     if (document.querySelector(COMMENT_SELECTORS)) {

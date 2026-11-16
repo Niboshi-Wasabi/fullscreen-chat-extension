@@ -1,7 +1,10 @@
 import { bindCompose } from "../../shared/compose";
 import type { MessageSegment, NormalizedMessage } from "../../core/message";
 import { ensureLocale, t } from "../../shared/i18n";
-import { NATIVE_CHAT_FRAME_ID } from "../../shared/dom-ids";
+import {
+  NATIVE_CHAT_FRAME_ID,
+  NATIVE_COMMENTS_PORTAL_ID,
+} from "../../shared/dom-ids";
 import { isSafeHttpsImageUrl } from "../../shared/safe-image-url";
 import type { ExtensionSettings, PanelBounds } from "../../shared/settings";
 
@@ -19,6 +22,13 @@ export interface OverlayPanelController {
   /** Official chat URL for iframe mode; null falls back to custom list.
    * 公式チャット iframe。null のとき自前リストにフォールバック。 */
   setNativeChatUrl(url: string | null): void;
+  /**
+   * Show/hide the comments portal host (ISS-026). Caller reparents the node.
+   * 通常コメントポータル面の表示切替。ノード移動は呼び出し側。
+   */
+  setNativePortalActive(active: boolean): void;
+  /** Portal host element for reparenting `ytd-comments` / ポータル先ホスト */
+  getNativePortalHost(): HTMLElement | null;
   focusCompose(): void;
   /** Reparent under fullscreen element when needed / 全画面要素配下へ再配置 */
   reparentForFullscreen(): void;
@@ -51,7 +61,9 @@ export function createOverlayPanel(options: {
   let inputEl: HTMLTextAreaElement | null = null;
   let replyHintEl: HTMLElement | null = null;
   let nativeFrame: HTMLIFrameElement | null = null;
+  let nativePortalHost: HTMLDivElement | null = null;
   let nativeUrl: string | null = null;
+  let nativePortalActive = false;
   let settings: ExtensionSettings | null = null;
   let lastMessages: NormalizedMessage[] = [];
   let replyToId: string | null = null;
@@ -187,7 +199,7 @@ export function createOverlayPanel(options: {
       nativeFrame.allow = "clipboard-write; fullscreen";
       nativeFrame.setAttribute("aria-hidden", "true");
       nativeFrame.addEventListener("load", () => {
-        if (!nativeFrame || !isNativeMode()) {
+        if (!nativeFrame || !isIframeNativeMode()) {
           return;
         }
         try {
@@ -200,6 +212,13 @@ export function createOverlayPanel(options: {
           // クロスオリジンでは中身を見られないので公式枠のまま。
         }
       });
+
+      nativePortalHost = document.createElement("div");
+      nativePortalHost.id = NATIVE_COMMENTS_PORTAL_ID;
+      nativePortalHost.className = "fce-panel-native-portal";
+      nativePortalHost.tabIndex = -1;
+      nativePortalHost.setAttribute("aria-hidden", "true");
+      nativePortalHost.hidden = true;
 
       composeEl = document.createElement("form");
       composeEl.className = "fce-panel-compose";
@@ -266,6 +285,7 @@ export function createOverlayPanel(options: {
         gearMenu,
         listEl,
         nativeFrame,
+        nativePortalHost,
         composeEl,
         resizeE,
         resizeS,
@@ -319,9 +339,20 @@ export function createOverlayPanel(options: {
       nativeUrl = url;
       renderSurface();
     },
+    setNativePortalActive(active) {
+      nativePortalActive = active;
+      renderSurface();
+    },
+    getNativePortalHost() {
+      return nativePortalHost;
+    },
     focusCompose() {
-      if (isNativeMode()) {
+      if (isIframeNativeMode()) {
         nativeFrame?.focus();
+        return;
+      }
+      if (isPortalNativeMode()) {
+        nativePortalHost?.focus();
         return;
       }
       inputEl?.focus();
@@ -359,6 +390,9 @@ export function createOverlayPanel(options: {
       suppressNativePointer = true;
       if (nativeFrame) {
         nativeFrame.style.pointerEvents = "none";
+      }
+      if (nativePortalHost) {
+        nativePortalHost.style.pointerEvents = "none";
       }
       // Switch to free layout using current on-screen box / 現在の見た目から自由配置へ切替
       applyFreePosition({
@@ -400,6 +434,9 @@ export function createOverlayPanel(options: {
       panelEl.dataset.dragging = "0";
       if (nativeFrame) {
         nativeFrame.style.pointerEvents = "";
+      }
+      if (nativePortalHost) {
+        nativePortalHost.style.pointerEvents = "";
       }
       suppressNativePointer = false;
       const position = readCurrentPosition();
@@ -444,6 +481,9 @@ export function createOverlayPanel(options: {
       suppressNativePointer = true;
       if (nativeFrame) {
         nativeFrame.style.pointerEvents = "none";
+      }
+      if (nativePortalHost) {
+        nativePortalHost.style.pointerEvents = "none";
       }
       event.preventDefault();
       event.stopPropagation();
@@ -491,6 +531,9 @@ export function createOverlayPanel(options: {
       if (nativeFrame) {
         nativeFrame.style.pointerEvents = "";
       }
+      if (nativePortalHost) {
+        nativePortalHost.style.pointerEvents = "";
+      }
       suppressNativePointer = false;
       const position = readCurrentPosition();
       if (position) {
@@ -504,24 +547,42 @@ export function createOverlayPanel(options: {
     handle.addEventListener("pointercancel", endResize);
   }
 
-  function isNativeMode(): boolean {
+  function isIframeNativeMode(): boolean {
     return Boolean(settings?.panel.useNativeChat && nativeUrl);
   }
 
+  function isPortalNativeMode(): boolean {
+    return Boolean(settings?.panel.useNativeChat && nativePortalActive);
+  }
+
+  function isNativeMode(): boolean {
+    return isIframeNativeMode() || isPortalNativeMode();
+  }
+
   function renderSurface(): void {
-    if (!listEl || !composeEl || !nativeFrame) {
+    if (!listEl || !composeEl || !nativeFrame || !nativePortalHost) {
       return;
     }
-    const native = isNativeMode();
+    const iframeNative = isIframeNativeMode();
+    const portalNative = isPortalNativeMode() && !iframeNative;
+    const native = iframeNative || portalNative;
     listEl.hidden = native;
     composeEl.hidden = native;
-    nativeFrame.hidden = !native;
-    nativeFrame.setAttribute("aria-hidden", native ? "false" : "true");
+    nativeFrame.hidden = !iframeNative;
+    nativeFrame.setAttribute("aria-hidden", iframeNative ? "false" : "true");
+    nativePortalHost.hidden = !portalNative;
+    nativePortalHost.setAttribute(
+      "aria-hidden",
+      portalNative ? "false" : "true",
+    );
     if (suppressNativePointer) {
       nativeFrame.style.pointerEvents = "none";
+      nativePortalHost.style.pointerEvents = "none";
+    } else {
+      nativePortalHost.style.pointerEvents = "";
     }
 
-    if (native) {
+    if (iframeNative) {
       if (nativeFrame.dataset.src !== nativeUrl && nativeUrl) {
         nativeFrame.src = nativeUrl;
         nativeFrame.dataset.src = nativeUrl;
@@ -532,6 +593,9 @@ export function createOverlayPanel(options: {
     if (nativeFrame.src && nativeFrame.src !== "about:blank") {
       nativeFrame.src = "about:blank";
       delete nativeFrame.dataset.src;
+    }
+    if (portalNative) {
+      return;
     }
     if (inputEl) {
       inputEl.style.display = settings?.compose.enabled === false ? "none" : "";
@@ -683,6 +747,9 @@ export function createOverlayPanel(options: {
     if (nativeFrame) {
       nativeFrame.src = "about:blank";
     }
+    // Leave portaled nodes alone — runtime portal.dispose restores them.
+    // ポータル中ノードは runtime 側 dispose が復元する。
+    nativePortalHost?.replaceChildren();
     host?.remove();
     host = null;
     panelEl = null;
@@ -696,6 +763,8 @@ export function createOverlayPanel(options: {
     inputEl = null;
     replyHintEl = null;
     nativeFrame = null;
+    nativePortalHost = null;
+    nativePortalActive = false;
     dragState = null;
     resizeState = null;
     pendingPositions.length = 0;
@@ -1027,7 +1096,8 @@ function injectStyles(host: HTMLElement): void {
     }
     #${HOST_ID} .fce-panel-list[hidden],
     #${HOST_ID} .fce-panel-compose[hidden],
-    #${HOST_ID} .fce-panel-native[hidden] {
+    #${HOST_ID} .fce-panel-native[hidden],
+    #${HOST_ID} .fce-panel-native-portal[hidden] {
       display: none !important;
     }
     #${HOST_ID} .fce-panel-native {
@@ -1035,6 +1105,20 @@ function injectStyles(host: HTMLElement): void {
       width: 100%;
       border: 0;
       background: #0e0e10;
+    }
+    #${HOST_ID} .fce-panel-native-portal {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background: #0e0e10;
+      color-scheme: dark;
+    }
+    #${HOST_ID} .fce-panel-native-portal ytd-comments,
+    #${HOST_ID} .fce-panel-native-portal #comments {
+      display: block;
+      width: 100%;
+      max-width: none;
     }
     #${HOST_ID} .fce-panel-row {
       line-height: 1.35;

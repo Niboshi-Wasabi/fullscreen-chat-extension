@@ -47,4 +47,18 @@ describe("display routing", () => {
       showPopout: false,
     });
   });
+
+  it("allows popout for threaded comments without enabling danmaku (ISS-003)", () => {
+    const current = settings();
+    current.displayMode = "popout";
+    current.danmaku.enabled = true;
+    current.danmakuOverlayOnPanel = true;
+    expect(routeDisplay("youtube-comments", current)).toMatchObject({
+      showPanel: false,
+      showPopout: true,
+      showDanmaku: false,
+      popoutAllowed: true,
+      danmakuAllowed: false,
+    });
+  });
 });

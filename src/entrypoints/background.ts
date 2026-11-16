@@ -282,6 +282,15 @@ function isSamePopoutChat(existingUrl: string, targetUrl: string): boolean {
         existing.pathname.toLowerCase() === target.pathname.toLowerCase()
       );
     }
+    // Extension-owned chat popout (ISS-003) / 拡張自前チャット別窓
+    if (
+      (existing.protocol === "chrome-extension:" ||
+        existing.protocol === "moz-extension:") &&
+      (target.protocol === "chrome-extension:" ||
+        target.protocol === "moz-extension:")
+    ) {
+      return existing.pathname === target.pathname;
+    }
     return (
       existingHrefWithoutHash(existing) === existingHrefWithoutHash(target)
     );

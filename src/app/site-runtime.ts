@@ -11,8 +11,16 @@ import {
   type PanelBounds,
 } from "../shared/settings";
 import {
+  EXTENSION_CHAT_PUSH_TYPE,
+  EXTENSION_CHAT_READY_TYPE,
+  EXTENSION_CHAT_SEND_TYPE,
+  isExtensionChatRuntimeMessage,
+  resolveExtensionChatPopoutUrl,
+} from "../shared/runtime-messages";
+import {
   resolveNativePanelChatUrl,
   resolvePopoutTargetForPolicy,
+  type PopoutTarget,
 } from "../shared/site-ids";
 import { getPageMediaTimeSec, watchMediaClock } from "../shared/video-clock";
 import { getFeatureFlags } from "../shared/feature-flags";
@@ -23,6 +31,10 @@ import {
   isDocumentPipAvailable,
 } from "../views/pip-chat";
 import { createPopoutController } from "../views/popout";
+import {
+  createYouTubeCommentsPortal,
+  type YouTubeCommentsPortal,
+} from "./youtube-comments-portal";
 export interface SiteRuntimeOptions {
   site: SiteKind;
   createAdapter: () => SiteAdapter;
@@ -152,6 +164,10 @@ function startActiveRuntime(
   // 公式 iframe がチャット無効なら自前リストに落とす。
   let nativeChatRejected = false;
   let lastNativeUrlAttempt: string | null = null;
+  // Comments portal could not find ytd-comments — fall back to scrape list (ISS-026).
+  // 通常コメント節が見つからないときは自前リストへ。
+  let commentsPortalFailed = false;
+  let adapterRunning = false;
 
   const adapter = options.createAdapter();
   const panel = createOverlayPanel({
@@ -180,15 +196,29 @@ function startActiveRuntime(
       ensureRuntimeMounted(getSettings(), options.resolveMountParent());
     },
   });
+  const commentsPortal: YouTubeCommentsPortal | null =
+    options.site === "youtube-comments"
+      ? createYouTubeCommentsPortal({
+          resolveHost: () => panel.getNativePortalHost(),
+          onUnavailable: () => {
+            if (disposed || commentsPortalFailed) {
+              return;
+            }
+            commentsPortalFailed = true;
+            panel.setNativePortalActive(false);
+            commentsPortal?.sync(false);
+            ensureCommentsAdapterRunning(true);
+            ensureRuntimeMounted(getSettings(), options.resolveMountParent());
+          },
+        })
+      : null;
   const danmaku = createDanmakuView();
   const popout = createPopoutController({
-    resolveTarget: () =>
-      resolvePopoutTargetForPolicy(getSettings().popout.openPolicy),
+    resolveTarget: () => resolveRuntimePopoutTarget(getSettings()),
   });
   const pipChat = createPipChatController({
     onSend: (text) => adapter.sendMessage?.(text) ?? Promise.resolve(false),
   });
-  ensureRuntimeMounted(getSettings(), options.resolveMountParent());
 
   const archiveSync = createArchiveSync({
     getOffsetSec: () => getSettings().archive.syncOffsetSec,
@@ -206,42 +236,10 @@ function startActiveRuntime(
     },
   });
 
-  adapter.start((message) => {
-    if (seenIds.has(message.id)) {
-      // React hydration can finish an already displayed live row in later tasks.
-      const index = messages.findIndex((item) => item.id === message.id);
-      if (
-        options.site === "twitch" &&
-        message.videoOffsetSec === undefined &&
-        index >= 0
-      ) {
-        messages[index] = message;
-        publish();
-        if (routeDisplay(options.site, getSettings()).showDanmaku) {
-          const visible = Boolean(
-            message.isSelf ||
-            applyNgFilter([message], getSettings().filter).visible.length,
-          );
-          danmaku.update(message, visible);
-        }
-      }
-      return;
-    }
-    seenIds.add(message.id);
-    if (message.videoOffsetSec !== undefined) {
-      // Archive/VOD — hold until media clock catches up.
-      // アーカイブ／VOD は再生時刻に合わせて解放。
-      archiveSync.ingest(message);
-      const media = getPageMediaTimeSec();
-      if (media !== null) {
-        archiveSync.onMediaTime(media, { seeked: false });
-        refreshArchivePanel(media);
-      }
-      return;
-    }
-    rememberMessage(message);
-    publish(message);
-  });
+  // Mount after archiveSync exists — adapter callbacks may fire synchronously.
+  // adapter が同期で発火しうるため、archiveSync 初期化後にマウントする。
+  ensureRuntimeMounted(getSettings(), options.resolveMountParent());
+  ensureCommentsAdapterRunning(!wantsCommentsPortal(getSettings()));
 
   const stopMediaClock = watchMediaClock((timeSec, meta) => {
     if (meta.seeked) {
@@ -257,6 +255,9 @@ function startActiveRuntime(
     const enabledChanged = previous?.enabled !== next.enabled;
     const panelNativeChanged =
       previous?.panel.useNativeChat !== next.panel.useNativeChat;
+    if (panelNativeChanged) {
+      commentsPortalFailed = false;
+    }
     const popoutPolicyChanged =
       previous?.popout.openPolicy !== next.popout.openPolicy ||
       previous?.popout.alwaysOnTop !== next.popout.alwaysOnTop;
@@ -314,30 +315,51 @@ function startActiveRuntime(
   };
   window.addEventListener("keydown", onKeydown, true);
 
-  const onCommand: Parameters<
+  const onRuntimeMessage: Parameters<
     typeof browser.runtime.onMessage.addListener
   >[0] = (message) => {
     if (
-      message?.type !== "fce:command" ||
-      message.command !== "toggle-compose-focus"
-    )
+      message?.type === "fce:command" &&
+      message.command === "toggle-compose-focus"
+    ) {
+      const route = routeDisplay(options.site, getSettings());
+      if (route.showPanel) panel.focusCompose();
+      else if (pipChat.isOpen()) pipChat.focusCompose();
+      else if (route.showPopout) popout.focus();
       return;
-    const route = routeDisplay(options.site, getSettings());
-    if (route.showPanel) panel.focusCompose();
-    else if (pipChat.isOpen()) pipChat.focusCompose();
-    else if (route.showPopout) popout.focus();
+    }
+    if (!isExtensionChatRuntimeMessage(message) || disposed) {
+      return;
+    }
+    if (message.type === EXTENSION_CHAT_READY_TYPE) {
+      pushExtensionChatMessages();
+      return;
+    }
+    if (message.type === EXTENSION_CHAT_SEND_TYPE) {
+      const text = typeof message.text === "string" ? message.text.trim() : "";
+      if (!text) {
+        return;
+      }
+      void adapter.sendMessage?.(text);
+    }
   };
-  browser.runtime.onMessage.addListener(onCommand);
+  browser.runtime.onMessage.addListener(onRuntimeMessage);
   publish();
 
   return () => {
     disposed = true;
     pipGeneration++;
-    browser.runtime.onMessage.removeListener(onCommand);
+    browser.runtime.onMessage.removeListener(onRuntimeMessage);
     unwatch();
     stopMediaClock();
     archiveSync.reset();
-    adapter.stop();
+    // Restore ytd-comments before tearing down the portal host.
+    // ポータルホスト破棄前に公式ノードをページへ戻す。
+    commentsPortal?.dispose();
+    if (adapterRunning) {
+      adapter.stop();
+      adapterRunning = false;
+    }
     panel.unmount();
     danmaku.unmount();
     panelMounted = false;
@@ -353,6 +375,71 @@ function startActiveRuntime(
     document.removeEventListener("fullscreenchange", onFullscreen);
     window.removeEventListener("keydown", onKeydown, true);
   };
+
+  function wantsCommentsPortal(next: ExtensionSettings): boolean {
+    // Portal is panel-only; popout uses the scraped extension list (ISS-003).
+    // ポータルはパネル専用。別窓は scrape した拡張リスト（ISS-003）。
+    const route = routeDisplay(options.site, next);
+    return (
+      options.site === "youtube-comments" &&
+      next.panel.useNativeChat &&
+      !commentsPortalFailed &&
+      route.showPanel
+    );
+  }
+
+  function ensureCommentsAdapterRunning(shouldRun: boolean): void {
+    if (shouldRun) {
+      if (adapterRunning) {
+        return;
+      }
+      adapterRunning = true;
+      adapter.start(onAdapterMessage);
+      return;
+    }
+    if (!adapterRunning) {
+      return;
+    }
+    adapter.stop();
+    adapterRunning = false;
+  }
+
+  function onAdapterMessage(message: NormalizedMessage): void {
+    if (seenIds.has(message.id)) {
+      // React hydration can finish an already displayed live row in later tasks.
+      const index = messages.findIndex((item) => item.id === message.id);
+      if (
+        options.site === "twitch" &&
+        message.videoOffsetSec === undefined &&
+        index >= 0
+      ) {
+        messages[index] = message;
+        publish();
+        if (routeDisplay(options.site, getSettings()).showDanmaku) {
+          const visible = Boolean(
+            message.isSelf ||
+            applyNgFilter([message], getSettings().filter).visible.length,
+          );
+          danmaku.update(message, visible);
+        }
+      }
+      return;
+    }
+    seenIds.add(message.id);
+    if (message.videoOffsetSec !== undefined) {
+      // Archive/VOD — hold until media clock catches up.
+      // アーカイブ／VOD は再生時刻に合わせて解放。
+      archiveSync.ingest(message);
+      const media = getPageMediaTimeSec();
+      if (media !== null) {
+        archiveSync.onMediaTime(media, { seeked: false });
+        refreshArchivePanel(media);
+      }
+      return;
+    }
+    rememberMessage(message);
+    publish(message);
+  }
 
   function rememberMessage(message: NormalizedMessage): void {
     if (messages.some((entry) => entry.id === message.id)) {
@@ -373,6 +460,7 @@ function startActiveRuntime(
     if (
       !route.showPanel ||
       resolvePanelNativeUrlForMount(settings) ||
+      wantsCommentsPortal(settings) ||
       archiveSync.size() === 0
     ) {
       return;
@@ -390,10 +478,14 @@ function startActiveRuntime(
       panel.applySettings(settings);
       const nativeUrl = resolvePanelNativeUrlForMount(settings);
       panel.setNativeChatUrl(nativeUrl);
-      // Native replay UI syncs itself; custom list uses timed history when available.
-      // 公式リプレイは自前同期。自前リストは時刻付き履歴を優先。
+      syncCommentsPortalSurface(settings);
+      // Native replay / portal UI sync themselves; custom list uses timed history.
+      // 公式リプレイ／ポータルは自前同期。自前リストは時刻付き履歴を優先。
       const media = getPageMediaTimeSec();
-      if (!nativeUrl && media !== null && archiveSync.size() > 0) {
+      if (wantsCommentsPortal(settings) || nativeUrl) {
+        // Official surface — do not push scraped rows into the hidden list.
+        // 公式面表示中は隠れリストへ scrape 行を送らない。
+      } else if (media !== null && archiveSync.size() > 0) {
         panel.setMessages(
           applyNgFilter(archiveSync.visibleUpTo(media), settings.filter)
             .visible,
@@ -420,7 +512,50 @@ function startActiveRuntime(
       if (lastPipDesired || pipChat.isOpen()) {
         pipChat.setMessages(visible);
       }
+      if (usesExtensionChatPopout() && (lastPopoutDesired || popout.isOpen())) {
+        pushExtensionChatMessages(visible);
+      }
     }
+  }
+
+  function usesExtensionChatPopout(): boolean {
+    return options.site === "youtube-comments";
+  }
+
+  function resolveRuntimePopoutTarget(
+    settings: ExtensionSettings,
+  ): PopoutTarget | null {
+    if (usesExtensionChatPopout()) {
+      // No official comments URL — open the extension-owned list page (ISS-003).
+      // 公式コメント別窓は無いので拡張自前ページを開く。
+      return {
+        siteKey: "youtube",
+        url: resolveExtensionChatPopoutUrl(),
+      };
+    }
+    return resolvePopoutTargetForPolicy(settings.popout.openPolicy);
+  }
+
+  function pushExtensionChatMessages(
+    rows?: ReturnType<typeof applyNgFilter>["visible"],
+  ): void {
+    if (!usesExtensionChatPopout() || disposed) {
+      return;
+    }
+    const settings = getSettings();
+    const visible = (
+      rows ?? applyNgFilter(messages, settings.filter).visible
+    ).slice(-settings.filter.maxVisible);
+    void browser.runtime
+      .sendMessage({
+        type: EXTENSION_CHAT_PUSH_TYPE,
+        messages: visible.map((message) => ({
+          id: message.id,
+          authorName: message.authorName,
+          text: message.text,
+        })),
+      })
+      .catch(() => undefined);
   }
 
   function syncPopout(
@@ -428,11 +563,12 @@ function startActiveRuntime(
     mountOptions?: { syncUrl?: boolean },
   ): void {
     const settings = getSettings();
-    const target = resolvePopoutTargetForPolicy(settings.popout.openPolicy);
-    const wantPip =
-      shouldShow &&
-      settings.popout.alwaysOnTop &&
-      (isDocumentPipAvailable() || getFeatureFlags().documentPip);
+    const target = resolveRuntimePopoutTarget(settings);
+    const pipAvailable =
+      isDocumentPipAvailable() || getFeatureFlags().documentPip;
+    // alwaysOnTop → Document PiP; otherwise OS window (official or extension page).
+    // 常時前面なら Document PiP。それ以外は OS 別窓（公式または拡張ページ）。
+    const wantPip = shouldShow && pipAvailable && settings.popout.alwaysOnTop;
     const wantWindow = shouldShow && target !== null && !wantPip;
 
     if (wantPip) {
@@ -453,6 +589,7 @@ function startActiveRuntime(
             if (target) {
               lastPopoutDesired = true;
               popout.open();
+              pushExtensionChatMessages();
             }
             return;
           }
@@ -477,11 +614,13 @@ function startActiveRuntime(
       if (!lastPopoutDesired) {
         lastPopoutDesired = true;
         popout.open();
+        pushExtensionChatMessages();
         return;
       }
       if (mountOptions?.syncUrl) {
         popout.sync();
       }
+      pushExtensionChatMessages();
       return;
     }
     if (lastPopoutDesired || popout.isOpen()) {
@@ -493,6 +632,8 @@ function startActiveRuntime(
   function resolvePanelNativeUrlForMount(
     next: ExtensionSettings,
   ): string | null {
+    // Comments use DOM portal, not an iframe URL (ISS-026).
+    // 通常コメントは iframe URL ではなく DOM ポータル。
     if (!next.panel.useNativeChat || options.site === "youtube-comments") {
       return null;
     }
@@ -509,6 +650,16 @@ function startActiveRuntime(
     return url;
   }
 
+  function syncCommentsPortalSurface(next: ExtensionSettings): void {
+    if (!commentsPortal) {
+      return;
+    }
+    const wantPortal = wantsCommentsPortal(next);
+    panel.setNativePortalActive(wantPortal);
+    commentsPortal.sync(wantPortal);
+    ensureCommentsAdapterRunning(!wantPortal);
+  }
+
   function ensureRuntimeMounted(
     next: ExtensionSettings,
     parent: HTMLElement,
@@ -516,6 +667,9 @@ function startActiveRuntime(
   ): void {
     const route = routeDisplay(options.site, next);
     if (!next.enabled) {
+      commentsPortal?.sync(false);
+      panel.setNativePortalActive(false);
+      ensureCommentsAdapterRunning(false);
       if (panelMounted) {
         panel.unmount();
         panelMounted = false;
@@ -535,7 +689,11 @@ function startActiveRuntime(
       }
       panel.applySettings(next);
       panel.setNativeChatUrl(resolvePanelNativeUrlForMount(next));
+      syncCommentsPortalSurface(next);
     } else if (panelMounted) {
+      commentsPortal?.sync(false);
+      panel.setNativePortalActive(false);
+      ensureCommentsAdapterRunning(true);
       panel.unmount();
       panelMounted = false;
     }

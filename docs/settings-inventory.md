@@ -16,7 +16,7 @@
 |------|-----|------------|------|
 | `enabled` | boolean | `true` | 拡張機能全体の有効／無効 |
 | `uiLocale` | `"auto" \| AppLocale`（約 44 言語、`locale-meta.ts`） | `"auto"` | UI 言語。変更 UI は**ポップアップ**（オプションには置かない）。未対応タグは `en` へフォールバック |
-| `displayMode` | `"panel" \| "popout" \| "danmaku"` | `"panel"` | 主表示モード |
+| `displayMode` | `"panel" \| "popout" \| "danmaku"` | `"panel"` | 主表示モード。通常 YT コメントでも `popout` 可（拡張自前リスト／ISS-003）。弾幕は通常コメントでは不可 |
 | `danmakuOverlayOnPanel` | boolean | `false` | パネル使用中に弾幕を重ねるか（ライブ／Twitch のみ） |
 
 ### 1.2 オーバーレイパネル
@@ -31,7 +31,7 @@
 | `panel.showBadges` | boolean | `true` | バッジ表示 |
 | `panel.idleFade` | boolean | `true` | 非ホバー時に薄くする |
 | `panel.allowPointer` | boolean | `true` | 入力・スクロールのためポインターを受ける（弾幕専用時は false 可） |
-| `panel.useNativeChat` | boolean | `true` | パネル内に公式チャット（YT live_chat / Twitch embed）を表示。オフ時は自前リスト＋転送送信 |
+| `panel.useNativeChat` | boolean | `true` | パネル内に公式チャットを表示。YT ライブ／Twitch は iframe（live_chat／embed）。**YT 通常コメントはページ `ytd-comments` のポータル**（ISS-026）。オフ時は自前リスト＋転送送信 |
 | `panel.position` | `{ x, y, w, h }?` | なし | パネル上端ハンドルでドラッグした自由配置（親要素相対 px）。未設定時は `anchor` 配置 |
 
 公式パネル表示中は絵文字・バッジ・送信 UI はサイト実装に委ねる。自前リスト／弾幕は常に NG フィルタを適用する。公式チャット iframe／Twitch embed（および公式別窓相当ページ）への NG 行隠しは `filter.applyToNativeChat`（既定 `true`）で制御する。false のとき公式 DOM は触らない。

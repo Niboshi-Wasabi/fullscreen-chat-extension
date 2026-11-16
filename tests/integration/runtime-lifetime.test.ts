@@ -19,6 +19,8 @@ const harness = vi.hoisted(() => ({
     applySettings() {},
     setMessages() {},
     setNativeChatUrl() {},
+    setNativePortalActive() {},
+    getNativePortalHost: () => null,
     reparentForFullscreen() {},
   }),
 }));

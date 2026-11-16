@@ -1,0 +1,78 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+.fce-ext-chat {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  background: #121212;
+  color: #f2f2f2;
+  font:
+    13px/1.4 "Segoe UI",
+    Meiryo,
+    sans-serif;
+}
+
+.fce-ext-chat-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2a2a;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.fce-ext-chat-list {
+  overflow: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fce-ext-chat-row {
+  display: grid;
+  gap: 2px;
+}
+
+.fce-ext-chat-author {
+  font-size: 11px;
+  color: #9a9a9a;
+  font-weight: 600;
+}
+
+.fce-ext-chat-text {
+  word-break: break-word;
+}
+
+.fce-ext-chat-compose {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #2a2a2a;
+}
+
+.fce-ext-chat-compose textarea {
+  resize: vertical;
+  min-height: 40px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #f2f2f2;
+  padding: 8px;
+  font: inherit;
+}
+
+.fce-ext-chat-compose button {
+  align-self: end;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}

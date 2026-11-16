@@ -20,10 +20,10 @@ export function routeDisplay(
   site: SiteKind,
   settings: ExtensionSettings,
 ): RouteDecision {
-  // Threaded YouTube comments: panel only (danmaku forbidden; popout is Post-MVP).
-  // 通常コメントはパネルのみ（弾幕／別窓経路は未対応）。
+  // Threaded YouTube comments: danmaku forbidden; popout uses extension-owned list (ISS-003).
+  // 通常コメントは弾幕不可。別窓は拡張自前リスト（ISS-003）。
   const danmakuAllowed = site !== "youtube-comments";
-  const popoutAllowed = site !== "youtube-comments";
+  const popoutAllowed = true;
   const mode: DisplayMode = settings.displayMode;
 
   if (!settings.enabled) {

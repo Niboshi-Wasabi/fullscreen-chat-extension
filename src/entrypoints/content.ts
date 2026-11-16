@@ -22,7 +22,10 @@ import {
   extractYouTubeVideoId,
   resolvePopoutTargetForPolicy,
 } from "../shared/site-ids";
-import { POPOUT_OPEN_TYPE } from "../shared/runtime-messages";
+import {
+  POPOUT_OPEN_TYPE,
+  resolveExtensionChatPopoutUrl,
+} from "../shared/runtime-messages";
 import { startPlayerChrome } from "../views/player-chrome";
 
 export default defineContentScript({
@@ -235,10 +238,14 @@ async function handleCommand(command: string): Promise<void> {
     return;
   }
   if (command === "open-popout") {
-    const target = resolvePopoutTargetForPolicy(settings.popout.openPolicy);
+    // Comments have no official popout URL — use the extension-owned list (ISS-003).
+    // 通常コメントに公式別窓は無いので拡張自前リストを開く。
+    const target = isYouTubeWatchWithComments()
+      ? { siteKey: "youtube" as const, url: resolveExtensionChatPopoutUrl() }
+      : resolvePopoutTargetForPolicy(settings.popout.openPolicy);
     if (!target) {
       console.warn(
-        "[fce] open-popout: no eligible live chat for current openPolicy",
+        "[fce] open-popout: no eligible chat surface for current page/policy",
       );
       return;
     }
