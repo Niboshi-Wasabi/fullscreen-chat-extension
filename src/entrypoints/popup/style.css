@@ -41,7 +41,7 @@ main {
   border: 0;
 }
 
-/* Mode segments stay compact beside the label / モードはラベル横でコンパクトに */
+/* Mode segments stay compact beside the label / モードの選択肢をラベルの横に並べる */
 .fce-popup .fce-segmented span {
   padding: 6px 9px;
   font-size: 12px;

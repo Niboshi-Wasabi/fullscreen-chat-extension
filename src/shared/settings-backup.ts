@@ -12,8 +12,15 @@ import {
   type ExtensionSettings,
 } from "./settings";
 
-/** Bump when the on-disk envelope shape changes / 封筒形式が変わったら上げる */
+/** Bump when the on-disk envelope shape changes / バックアップファイルの外側の構造を変更したら版番号を上げる */
 export const SETTINGS_BACKUP_VERSION = 1 as const;
+
+/**
+ * Top-level keys of removed features. Older exports still contain them, and
+ * strict validation would otherwise reject the whole file (ISS-027).
+ * 廃止機能のキー。旧版の書き出しに残り、厳密な検証で全体が拒否されるため除く。
+ */
+const RETIRED_SETTINGS_KEYS: readonly string[] = ["youtubeComments"];
 
 export interface SettingsBackupEnvelope {
   version: typeof SETTINGS_BACKUP_VERSION;
@@ -47,8 +54,20 @@ export function parseSettingsBackup(raw: unknown): ExtensionSettings | null {
     : "enabled" in raw || "displayMode" in raw || "panel" in raw
       ? raw
       : null;
-  if (!isSettingsPatch(settingsRaw)) return null;
-  return mergeSettings(DEFAULT_SETTINGS, settingsRaw);
+  const current = withoutRetiredKeys(settingsRaw);
+  if (!isSettingsPatch(current)) return null;
+  return mergeSettings(DEFAULT_SETTINGS, current);
+}
+
+function withoutRetiredKeys(value: unknown): unknown {
+  if (!isRecord(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      ([key]) => !RETIRED_SETTINGS_KEYS.includes(key),
+    ),
+  );
 }
 
 export async function exportSettingsBackup(): Promise<SettingsBackupEnvelope> {
@@ -78,7 +97,6 @@ export async function resetSettingsToDefault(): Promise<ExtensionSettings> {
       blockedUsers: [],
     },
     youtubeLive: { ...DEFAULT_SETTINGS.youtubeLive },
-    youtubeComments: { ...DEFAULT_SETTINGS.youtubeComments },
     twitch: { ...DEFAULT_SETTINGS.twitch },
     archive: { ...DEFAULT_SETTINGS.archive },
     compose: { ...DEFAULT_SETTINGS.compose },

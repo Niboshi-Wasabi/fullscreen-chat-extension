@@ -2,9 +2,9 @@
 
 ## 現在の前提
 
-Windows + PowerShell、TypeScript + WXT + pnpm。Chromium / Firefox向け。macOSは将来検討で、対応済みとはしない。
+開発には Windows と PowerShell を使う。拡張機能は TypeScript、WXT、pnpm でビルドし、Chromium と Firefox を対象とする。macOS 対応は今後検討する。
 
-2026-11-14のハーネス整備時に確認した環境はNode v22.23.2、pnpm 11.9.0、Python 3.12.10。Phase 3の開発ツールの要件はpackage.jsonのengines（Node 22.13以降の22系、24系、26系以降）、packageManagerはpnpm 11.9.0。実証した環境は22.23.2であり、他版の実機検証済みとはしない。ブラウザの最低対応版とは独立した開発要件。Pythonは初期整備の補助で、通常の統合検証には不要。
+2026-11-14 のハーネス整備時には Node v22.23.2、pnpm 11.9.0、Python 3.12.10 を確認した。開発ツールの要件は `package.json` に記載している。Node は 22.13 以降の 22 系、24 系、または 26 系以降で、pnpm は 11.9.0 を使う。これらはブラウザの最低対応版とは別の要件で、Node の動作を確認した版は v22.23.2。Python は初期整備の補助と[日本語の校閲](japanese-proofreading.md)で使う。通常の統合検証に Python は不要。
 
 ## 準備と実行
 
@@ -16,11 +16,12 @@ Windows + PowerShell、TypeScript + WXT + pnpm。Chromium / Firefox向け。macO
 | Firefox開発 | `pnpm.cmd dev:firefox` |
 | 型・ビルド | [品質基準](../quality/standards.md)を参照 |
 | 統合検証 | `pnpm.cmd verify` |
+| 日本語の校閲 | `pnpm.cmd check:japanese`。[校閲手順](japanese-proofreading.md)を参照 |
 | オンラインセキュリティ検証 | `pnpm.cmd verify:security`。範囲は[CI手順](ci.md) |
 | ブラウザ込みの検証 | `pnpm.cmd verify:browser` / `pnpm.cmd verify:chrome`。範囲は[ブラウザ手順](browser-verification.md) |
 | 公開パッケージ | [公開手順](release.md)を参照 |
 
-Chromiumはchrome://extensionsのデベロッパーモードで `.output/chrome-mv3`、開発中は生成されたdevディレクトリを読み込む。Firefoxはabout:debuggingから対象ビルドを一時読み込みする。作業専用プロファイルを使い、個人の認証情報を自動テストへ持ち込まない。
+Chromium では `chrome://extensions` のデベロッパーモードで `.output/chrome-mv3` を読み込む。開発中は開発サーバーが生成したディレクトリを選ぶ。Firefox では `about:debugging` から対象のビルドを一時インストールする。検証専用プロファイルを使い、個人の認証情報を自動テストに使わない。
 
 統合検証はWXT prepareから開始し、失敗時は後続を未実行として停止する。初回は固定されたネイティブ検査ツールを `.harness-tools/` へ取得するため、Windows x64とネット接続が必要。結果JSONとJUnitは `.harness-artifacts/`（Git対象外）へ保存。`pnpm.cmd format` は書式を変更し、`pnpm.cmd format:check` は読み取り検査する。pnpm-workspace.yamlのminimumReleaseAgeStrictで公開待機期間の自動例外追加を防ぐ。セキュリティ例外をツール任せに追加しない。
 
@@ -34,13 +35,13 @@ Chromiumはchrome://extensionsのデベロッパーモードで `.output/chrome-
 2. 5 Skillsが検出されることを確認。Codexは `$requirements-analysis`、Cursorは `/requirements-analysis` など利用版の公式UIで明示呼び出しする。
 3. 「ISS-002の未決定事項をコード変更なしで整理」と依頼。正本と台帳を読み、仕様を独断確定しないことを確認する。
 4. レビューSkillで「routerの通常コメント経路を読み取り専用で確認」と依頼。実コードを読み、変更しないことを確認する。
-5. 検証Skillで「現在ある検証と未実施ゲートを区別」と依頼。verify、セキュリティ、Chrome E2Eを利用可能と認識し、未実施のGitHub・同梱Chromium・Firefox/実サイトを成功扱いしないことを確認する。
+5. 検証スキルで「現在ある検証と未実施ゲートを区別」と依頼。verify、セキュリティ、Chrome E2Eを利用可能と認識し、未実施のGitHub・同梱Chromium・Firefox/実サイトを成功と記録しないことを確認する。
 6. 実際の結果・読まれた参照・変更の有無を記録する。検出だけ、静的構文チェックだけでは互換性確認完了にしない。
 
 検出されない場合は対応版を確認し、必要なSKILL.mdを直接読ませる。実際に試さず再起動や更新で解決済みと記録しない。
 
 ## Gitと継続作業
 
-現在のGit配置は[ISS-004](../quality/issues.md#iss-004)で未決定。初期化・remote登録・コミットをこの手順の記載だけで実行しない。利用できる場合は作業前後の差分を確認する。
+Git と GitHub の初期設定は完了している。経緯は [ISS-004](../quality/issues.md#iss-004) を参照する。作業前後の差分を確認する。Git の初期化、リモートの登録、コミットには、それぞれ実行の許可が必要。
 
 セッション終了時は計画の進捗、検証、未解決、次の作業を更新。既存成果を破棄して再開しない。

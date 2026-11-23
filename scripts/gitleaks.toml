@@ -3,7 +3,7 @@ title = "Project secret detection"
 [extend]
 useDefault = true
 
-# A public storage migration identifier, not a credential / 公開された保存形式の移行ID。
+# A public storage migration identifier, not a credential / 保存形式の移行に使う公開 ID。
 # Match the exact value AND file only; other keys in this file remain scanned.
 [[allowlists]]
 targetRules = ["generic-api-key"]

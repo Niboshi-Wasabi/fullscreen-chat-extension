@@ -38,5 +38,8 @@ describe("verification profiles", () => {
     expect(() => selectSteps({ ci: true, browser: "chrome" })).toThrow(
       "pinned Chromium",
     );
+    expect(() => selectSteps({ requireHistory: true })).toThrow(
+      "--require-history",
+    );
   });
 });

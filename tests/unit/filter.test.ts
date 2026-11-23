@@ -50,4 +50,31 @@ describe("NG filtering", () => {
     expect(result.droppedCount).toBe(2);
     expect(input).toHaveLength(3);
   });
+
+  it("ignores empty NG words and matches blockedUsers against name or login even when id exists", () => {
+    const filter = {
+      ...settings().filter,
+      ngWords: ["", "spam"],
+      ngRegex: true,
+      blockedUsers: ["SomeLogin", "DisplayName"],
+      hideBots: true,
+    };
+    expect(shouldDropMessage(message({ text: "hello" }), filter)).toBe(false);
+    expect(
+      shouldDropMessage(
+        message({ authorId: "u1", authorLogin: "somelogin", authorName: "A" }),
+        filter,
+      ),
+    ).toBe(true);
+    expect(
+      shouldDropMessage(
+        message({ authorId: "u2", authorName: "displayname" }),
+        filter,
+      ),
+    ).toBe(true);
+    expect(shouldDropMessage(message({ role: "bot" }), filter)).toBe(true);
+    expect(shouldDropMessage(message({ authorName: "Nightbot" }), filter)).toBe(
+      true,
+    );
+  });
 });

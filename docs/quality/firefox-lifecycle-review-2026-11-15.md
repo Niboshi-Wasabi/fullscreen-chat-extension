@@ -2,7 +2,7 @@
 
 ## 対象と独立性
 
-- レビュー担当: 実装担当から分離したサブエージェント `/root/firefox_review`。製品・設定・既存テストへの編集なし。
+- レビュー担当: 実装担当から分離したサブエージェント `/root/firefox_review`。製品コード、設定、既存テストは編集していない。
 - 要求: Firefox BFCache復元、終了時cleanup、停止後の遅着起動、新旧runtime競合、購読・DOM・タイマー解除、WXT無効化。
 - 初回対象: page-lifecycle/content、関連runtime controller/site runtime、各site wrapper、adapter/views、単体・cached-page E2E、Firefox計画・検証記録。再レビューでPiP controller、runtime-lifetime/content-invalidation追加テストを含む変更範囲と関連経路を再確認。
 - Git未配置。初回11対象は `.harness-artifacts/firefox-fixes/changed-file-hashes.json` と実SHA-256がすべて一致。Firefox修正前はhashのみで完全なsource差分がなく、初回修正の完全diffは未確認。今回の指摘対応前sourceは `.harness-artifacts/firefox-next/before-source.json`。再レビュー対象識別は同ディレクトリの `reviewed-file-hashes.json` を参照。

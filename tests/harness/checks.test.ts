@@ -173,6 +173,30 @@ describe("manifest gate", () => {
       checkManifest(value, "chrome", policy, root, "0.1.0"),
     ).toContainEqual(expect.stringContaining("entry assets"));
   });
+
+  it("enforces manifest commands baseline and rejects default keys on unmapped commands", () => {
+    const root = fixture(files);
+    const value = {
+      ...manifest(),
+      commands: {
+        "toggle-enabled": { suggested_key: { default: "Alt+Shift+C" } },
+        "open-popout": { suggested_key: { default: "Alt+Shift+P" } },
+      },
+    };
+    const withCommands = {
+      ...policy,
+      commands: {
+        maxSuggestedKeys: 4,
+        unmapped: ["open-popout"],
+        names: ["toggle-enabled", "open-popout"],
+      },
+    };
+    expect(checkManifest(value, "chrome", withCommands, root, "0.1.0")).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("open-popout must remain unmapped"),
+      ]),
+    );
+  });
 });
 
 describe("static constraints", () => {

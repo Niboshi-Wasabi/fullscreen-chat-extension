@@ -3,7 +3,7 @@
  * Adapter と View が共有する正規化メッセージ。
  */
 
-export type SiteKind = "youtube-live" | "youtube-comments" | "twitch";
+export type SiteKind = "youtube-live" | "twitch";
 
 export type MessageRole =
   "viewer" | "member" | "moderator" | "owner" | "bot" | "unknown";
@@ -16,6 +16,12 @@ export interface NormalizedMessage {
   id: string;
   site: SiteKind;
   authorName: string;
+  /** Optional canonical login suffix (e.g. "login" alongside localized display name).
+   * 表示名と別表記のログイン名（括弧付き表示用）。 */
+  authorLogin?: string;
+  /** Safe CSS author color (#hex / rgb) when provided by host DOM.
+   * サイト側の投稿者名カラー（安全な hex / rgb のみ）。 */
+  authorColor?: string;
   /** Channel / user id when available / 取得できる場合のチャンネル・ユーザー ID */
   authorId?: string;
   text: string;
@@ -30,10 +36,11 @@ export interface NormalizedMessage {
   timestampMs: number;
   role: MessageRole;
   badges: string[];
+  /** Badge images when available (self-rendered panel; ISS-024).
+   * 取得できたバッジ画像（自前パネル表示用）。 */
+  badgeIcons?: { src: string; alt: string }[];
   /** True when message looks like !command / `!` コマンドらしいとき */
   isCommand: boolean;
-  /** Threaded comments that can open a native reply box / 公式返信 UI を開ける通常コメント */
-  canReply?: boolean;
   raw?: unknown;
 }
 
@@ -45,7 +52,7 @@ export function looksLikeCommand(text: string): boolean {
   return /^\s*![^\s]/.test(text);
 }
 
-/** Flatten segments to plain text (emoji → alt) / 断片を平文に（絵文字は alt） */
+/** Flatten segments to plain text (emoji → alt) / 断片をプレーンテキストにまとめる。絵文字には alt を使う */
 export function segmentsToPlainText(segments: MessageSegment[]): string {
   return segments
     .map((segment) => {

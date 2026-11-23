@@ -8,9 +8,6 @@ export interface SiteAdapter {
   stop(): void;
   /** Try to send text via native UI / ネイティブ UI 経由で送信を試す */
   sendMessage?(text: string): Promise<boolean>;
-  /** Open native reply for a known message, then send text.
-   * 既知メッセージの公式返信を開き、本文を送る。 */
-  replyTo?(messageId: string, text: string): Promise<boolean>;
 }
 
 export const TOP_FRAME_MESSAGE_TYPE = "fce:normalized-message" as const;

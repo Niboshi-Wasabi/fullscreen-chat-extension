@@ -1,8 +1,9 @@
 import { segmentsToPlainText, type MessageSegment } from "../core/message";
+import { isSafeHttpsImageUrl } from "./safe-image-url";
 
 /**
  * Walk a chat body node into text + emoji image segments.
- * チャット本文ノードをテキスト＋絵文字画像の断片へ分解する。
+ * チャット本文の DOM ノードを、テキストと絵文字画像の断片に分ける。
  */
 export function extractMessageContent(root: Element | null): {
   text: string;
@@ -37,7 +38,7 @@ function walk(node: Node, out: MessageSegment[]): void {
       node.getAttribute("alt") ||
       node.getAttribute("aria-label") ||
       "emoji";
-    if (src) {
+    if (src && isSafeHttpsImageUrl(src)) {
       out.push({ type: "emoji", src, alt });
     } else if (alt) {
       out.push({ type: "text", text: `:${alt}:` });
@@ -49,9 +50,20 @@ function walk(node: Node, out: MessageSegment[]): void {
   // YT カスタム絵文字はラッパー内に img があることが多い。
   if (
     node.matches(
-      "img, yt-live-chat-emoji, .emoji, .chat-image, .chat-line__message--emote",
+      [
+        "img",
+        "yt-live-chat-emoji",
+        ".emoji",
+        ".chat-image",
+        ".chat-line__message--emote",
+        ".chat-line__message--emote-button",
+        "img.chat-line__message--emote",
+        "[data-a-target='emote-name']",
+        ".vod-message img",
+      ].join(", "),
     ) ||
-    node.tagName.toLowerCase().includes("emoji")
+    node.tagName.toLowerCase().includes("emoji") ||
+    node.tagName.toLowerCase().includes("emote")
   ) {
     const img =
       node instanceof HTMLImageElement ? node : node.querySelector("img");

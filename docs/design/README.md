@@ -9,7 +9,7 @@ Implementation: `src/ui/site-icons.ts`, `src/views/player-chrome/index.ts`.
 
 ## Shared design guidance / 共通原則
 
-設定UIの正本は [settings-ui.md](settings-ui.md)。既存Cursorルールの本文を移し、Cursor以外でも参照できるようにしたものです。画像は上記の参照を継続します。
+設定 UI の原則は [settings-ui.md](settings-ui.md)。既存の Cursor ルールの本文を移し、ほかのクライアントでも参照できるようにしました。参考画像も同じページから確認できます。
 
 ## Bundled icon font / 同梱アイコンフォント
 

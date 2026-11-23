@@ -22,7 +22,7 @@ type LocaleLoader = (
 // Ceiling: host-page UI (panel / player chrome / PiP) falls back to English when
 // uiLocale is neither en nor ja. Next: fetch locale JSON via runtime.getURL.
 // content は en/ja のみ（content script に動的 chunk を載せない）。
-// 上限: ホストページ UI は en/ja 以外で英語フォールバック。次は runtime.getURL 読込。
+// ホストページの UI は en/ja 以外では英語を使う。今後は runtime.getURL での読み込みを検討する。
 let extraLocaleLoader: LocaleLoader | null = null;
 
 const CATALOG: Partial<Record<AppLocale, MessageCatalog>> = {
@@ -41,8 +41,13 @@ export function resolveLocale(uiLocale: UiLocale): AppLocale {
   if (uiLocale !== "auto" && isAppLocale(uiLocale)) {
     return uiLocale;
   }
-  const language = browser.i18n?.getUILanguage?.() ?? navigator.language;
-  return matchBrowserLanguage(language) ?? "en";
+  let language: string | undefined;
+  try {
+    language = browser.i18n?.getUILanguage?.();
+  } catch {
+    language = undefined;
+  }
+  return matchBrowserLanguage(language ?? navigator.language) ?? "en";
 }
 
 /**
@@ -87,7 +92,7 @@ export function t(uiLocale: UiLocale, key: MessageKey): string {
   return catalog[key] ?? en[key] ?? key;
 }
 
-/** Native-labeled list for the language select / 言語セレクト用（各言語の自称） */
+/** Native-labeled list for the language select / 言語セレクト用（各言語での言語名） */
 export function listLocaleOptions(): ReadonlyArray<{
   code: AppLocale;
   label: string;

@@ -17,6 +17,7 @@
     "format:check": "prettier --check src scripts tests .github *.ts *.mjs *.cjs *.json pnpm-workspace.yaml",
     "lint": "eslint src scripts tests eslint.config.mjs vitest.config.ts playwright.config.ts wxt.config.ts --max-warnings=0",
     "check:docs": "node scripts/verify-docs.mjs",
+    "check:japanese": "python -IB tools/japanese-guard/check.py",
     "check:locales": "node scripts/verify-locales.mjs",
     "check:architecture": "depcruise src --config .dependency-cruiser.cjs --output-type err-long",
     "check:manifests": "node scripts/verify-manifests.mjs",
@@ -32,8 +33,13 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "trace:e2e": "node node_modules/@playwright/test/cli.js show-trace --host 127.0.0.1 --port 0",
     "test:e2e:chrome": "node scripts/run-e2e.mjs --browser=chrome",
+    "test:e2e:firefox": "node scripts/run-firefox-synthetic.mjs",
     "verify:browser": "node scripts/verify.mjs --browser=chromium",
-    "verify:chrome": "node scripts/verify.mjs --browser=chrome"
+    "verify:chrome": "node scripts/verify.mjs --browser=chrome",
+    "real-site:init": "node scripts/real-site-run.mjs init",
+    "real-site:finalize": "node scripts/real-site-run.mjs finalize",
+    "check:real-site": "node scripts/check-real-site-results.mjs",
+    "check:regression-links": "node scripts/check-regression-links.mjs"
   },
   "license": "MIT",
   "devDependencies": {

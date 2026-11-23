@@ -2,14 +2,14 @@
 
 日付: 2026-11-14  
 入力: [competitive-evaluation.md](./competitive-evaluation.md)、[prd.md](./prd.md)  
-判定ゲート: プラン Phase 2 のルールに従う
+判定は実装計画の Phase 2 の条件に従う。
 
 ---
 
 ## 判定結果（確定）
 
 **自前コアで新規実装する（greenfield）。**  
-近い OSS は **仕様・実装パターンのリファレンス** とし、製品全体の fork はしない。
+機能が近い OSS は、仕様と実装方法の参考にする。製品全体のフォークは行わない。
 
 MIT の Stream Danmaku Overlay については、必要箇所のみ **着想・アルゴリズムの参考** または **明示的に帰属した小さな移植** を検討可。リポジトリ丸ごとの fork は採用しない。
 

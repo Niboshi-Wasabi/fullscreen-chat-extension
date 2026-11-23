@@ -2,11 +2,47 @@ import {
   createYouTubeLiveAdapter,
   isYouTubeWatchWithLiveChat,
 } from "../adapters/youtube-live";
+import { resolveYouTubePageVideoId } from "../shared/site-ids";
+import { isYouTubeChatReplay } from "../shared/youtube-page";
 import { startSiteRuntime } from "./site-runtime";
+
+function resolveCurrentHref(): string | undefined {
+  if (typeof location === "undefined") {
+    return undefined;
+  }
+  if (location.href) {
+    return location.href;
+  }
+  if (location.hostname) {
+    return `https://${location.hostname}${location.pathname ?? "/"}`;
+  }
+  return undefined;
+}
+
+function resolveYouTubeBridgeLabel(): string | null {
+  const href = resolveCurrentHref();
+  const videoId = href ? resolveYouTubePageVideoId(href) : null;
+  if (
+    typeof document !== "undefined" &&
+    typeof document.querySelector === "function"
+  ) {
+    const heading = document
+      .querySelector("ytd-watch-metadata h1, h1.ytd-watch-metadata")
+      ?.textContent?.trim();
+    if (heading) {
+      return heading.slice(0, 80);
+    }
+    const title = document.title?.replace(/\s*-\s*YouTube\s*$/i, "").trim();
+    if (title) {
+      return title.slice(0, 80);
+    }
+  }
+  return videoId ? `YouTube (${videoId})` : null;
+}
 
 /**
  * YouTube Live vertical slice runtime.
- * YouTube Live 縦通しランタイム。
+ * YouTube ライブの実行処理。
  */
 export function startYouTubeLiveRuntime(
   signal?: AbortSignal,
@@ -23,6 +59,15 @@ export function startYouTubeLiveRuntime(
         document.querySelector<HTMLElement>("#player-container-inner") ??
         document.querySelector<HTMLElement>("#player") ??
         document.body,
+      isCrossSiteBridgeEligible: () => !isYouTubeChatReplay(),
+      resolveBridgeChannelLogin: () => {
+        if (isYouTubeChatReplay()) {
+          return null;
+        }
+        const href = resolveCurrentHref();
+        return href ? resolveYouTubePageVideoId(href) : null;
+      },
+      resolveBridgeLabel: resolveYouTubeBridgeLabel,
     },
     signal,
   );

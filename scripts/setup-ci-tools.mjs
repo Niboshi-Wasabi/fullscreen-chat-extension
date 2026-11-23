@@ -41,7 +41,7 @@ export function toolPath(name) {
   return binary;
 }
 
-/** Download pinned official archives and verify the extracted executables / 公式配布物と展開後exeを二重照合。 */
+/** Download pinned official archives and verify the extracted executables / 公式配布物と展開後の実行ファイルをそれぞれ検証する。 */
 export async function setupTools() {
   if (
     process.platform !== configuration.platform ||
@@ -74,17 +74,26 @@ export async function setupTools() {
     fs.mkdirSync(directory, { recursive: true });
     const archive = path.join(directory, "verified.zip");
     fs.writeFileSync(archive, bytes);
-    const extracted = spawnSync(
-      "tar",
-      ["-xf", archive, "-C", directory, `${name}.exe`],
-      { encoding: "utf8", shell: false, timeout: 30000 },
-    );
-    if (extracted.error || extracted.status !== 0)
-      throw new Error(
-        `${name} extraction failed: ${extracted.error?.message ?? extracted.stderr}`,
+    try {
+      const extracted = spawnSync(
+        "tar",
+        ["-xf", archive, "-C", directory, `${name}.exe`],
+        { encoding: "utf8", shell: false, timeout: 30000 },
       );
-    toolPath(name);
-    fs.unlinkSync(archive);
+      if (extracted.error || extracted.status !== 0)
+        throw new Error(
+          `${name} extraction failed: ${extracted.error?.message ?? extracted.stderr}`,
+        );
+      try {
+        toolPath(name);
+      } catch (error) {
+        const binary = path.join(directory, `${name}.exe`);
+        if (fs.existsSync(binary)) fs.unlinkSync(binary);
+        throw error;
+      }
+    } finally {
+      if (fs.existsSync(archive)) fs.unlinkSync(archive);
+    }
   }
 }
 

@@ -51,7 +51,7 @@ export const steps = [
   ["manifests", "scripts/verify-manifests.mjs"],
 ];
 
-/** Run sequential checks without a shell; stop and record not-run on failure / シェルを介さず実行し失敗後を未実行として返す。 */
+/** Run sequential checks without a shell; stop and record not-run on failure / シェルを使わず順に実行する。失敗したら停止し、後続を未実行として記録する。 */
 export function runVerification(root, run = spawnSync, selectedSteps = steps) {
   const results = [];
   for (const [name, script, ...args] of selectedSteps) {
@@ -77,7 +77,7 @@ export function runVerification(root, run = spawnSync, selectedSteps = steps) {
   return results;
 }
 
-/** Select explicit verification profiles; CI always requires pinned browser E2E / CIの拡張E2Eを省略しない。
+/** Select explicit verification profiles; CI always requires pinned browser E2E / CI では固定版ブラウザで拡張機能の E2E を実行する。
  * @param {{securityOnly?: boolean, ci?: boolean, browser?: string, requireHistory?: boolean}} options
  */
 export function selectSteps({
@@ -92,6 +92,8 @@ export function selectSteps({
     throw new Error("Security-only mode cannot replace a full CI/browser run");
   if (ci && browser === "chrome")
     throw new Error("CI must use pinned Chromium, not an installed Chrome");
+  if (requireHistory && !ci && !securityOnly)
+    throw new Error("--require-history requires --ci or --security");
   const history = ci || requireHistory;
   const securitySteps = [
     ["audit", "scripts/check-audit.mjs"],

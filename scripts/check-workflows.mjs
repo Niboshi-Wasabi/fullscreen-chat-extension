@@ -27,7 +27,7 @@ const diagnostics = [
   ".harness-artifacts/e2e-report/",
 ];
 
-/** Enforce this project's CI trust boundary in addition to Actionlint / 構文検査に加え権限と必須ゲートを守る。 */
+/** Enforce this project's CI trust boundary in addition to Actionlint / 構文に加えて、権限と必須の検証ステップも確認する。 */
 export function workflowPolicy(workflow) {
   const errors = [];
   if (!workflow || typeof workflow !== "object")

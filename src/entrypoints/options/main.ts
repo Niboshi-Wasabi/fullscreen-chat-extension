@@ -2,12 +2,13 @@ import {
   changedSettings,
   MAX_SETTINGS_BYTES,
 } from "../../shared/settings-validation";
-import { t, type MessageKey } from "../../shared/i18n";
+import { resolveLocale, t, type MessageKey } from "../../shared/i18n";
 import {
   exportSettingsBackup,
   importSettingsBackup,
   resetSettingsToDefault,
 } from "../../shared/settings-backup";
+import { getFeatureFlags } from "../../shared/feature-flags";
 import { applyDomI18n } from "../../ui/dom-i18n";
 import {
   loadSettings,
@@ -81,13 +82,21 @@ const popoutRememberSite = document.querySelector<HTMLInputElement>(
 );
 const popoutAlwaysOnTop =
   document.querySelector<HTMLInputElement>("#popoutAlwaysOnTop");
+const popoutAlwaysOnTopHint = document.querySelector<HTMLElement>(
+  "#popoutAlwaysOnTopHint",
+);
+if (!getFeatureFlags().documentPip) {
+  // Without Document PiP an OS popout cannot stay on top.
+  // 「前面に固定」は Document PiP 対応環境でのみ利用できる。
+  if (popoutAlwaysOnTop) {
+    popoutAlwaysOnTop.disabled = true;
+  }
+  if (popoutAlwaysOnTopHint) {
+    popoutAlwaysOnTopHint.dataset.i18n = "popoutAlwaysOnTopUnavailable";
+  }
+}
 const twitchThirdPartyEmotes = document.querySelector<HTMLInputElement>(
   "#twitchThirdPartyEmotes",
-);
-const ytCommentsSort =
-  document.querySelector<HTMLSelectElement>("#ytCommentsSort");
-const ytCommentsLoadMore = document.querySelector<HTMLInputElement>(
-  "#ytCommentsLoadMore",
 );
 const ngWords = document.querySelector<HTMLTextAreaElement>("#ngWords");
 const ngRegex = document.querySelector<HTMLInputElement>("#ngRegex");
@@ -155,15 +164,21 @@ function syncBadges(): void {
     });
 }
 
-function showStatus(message: string): void {
+function showStatus(message: string, isError = false): void {
   if (!status) {
     return;
   }
   status.textContent = message;
+  if (isError) {
+    status.dataset.state = "error";
+  } else {
+    delete status.dataset.state;
+  }
   window.clearTimeout(savedStatusTimer);
   savedStatusTimer = setTimeout(() => {
     if (status) {
       status.textContent = "";
+      delete status.dataset.state;
     }
   }, 1600);
 }
@@ -274,12 +289,6 @@ async function fillForm(settings: ExtensionSettings): Promise<void> {
   if (twitchThirdPartyEmotes) {
     twitchThirdPartyEmotes.checked = settings.twitch.thirdPartyEmotes;
   }
-  if (ytCommentsSort) {
-    ytCommentsSort.value = settings.youtubeComments.sort;
-  }
-  if (ytCommentsLoadMore) {
-    ytCommentsLoadMore.checked = settings.youtubeComments.autoLoadMore;
-  }
   if (ngWords) {
     ngWords.value = settings.filter.ngWords.join("\n");
   }
@@ -326,7 +335,7 @@ async function persistFromForm(): Promise<void> {
   const current = await loadSettings();
   if (applyingForm || generation !== formGeneration) return;
   // enabled / displayMode / sites stay popup-owned — do not overwrite from options.
-  // 有効・モード・サイトはポップアップ専有。options からは上書きしない。
+  // 有効状態、モード、サイトはポップアップで管理する。options からは上書きしない。
   const formPatch: SettingsPatch = {
     danmakuOverlayOnPanel: Boolean(danmakuOverlay?.checked),
     panel: {
@@ -384,14 +393,24 @@ async function persistFromForm(): Promise<void> {
     twitch: {
       thirdPartyEmotes: Boolean(twitchThirdPartyEmotes?.checked),
     },
-    youtubeComments: {
-      sort: ytCommentsSort?.value === "newest" ? "newest" : "top",
-      autoLoadMore: Boolean(ytCommentsLoadMore?.checked),
-    },
   };
   const patch = changedSettings(formBaseline ?? current, formPatch);
-  formBaseline = mergeSettings(formBaseline ?? current, formPatch);
-  if (Object.keys(patch).length) await saveSettings(patch);
+  if (Object.keys(patch).length) {
+    try {
+      formBaseline = await saveSettings(patch);
+    } catch (error) {
+      console.warn("[fce] options save rejected", error);
+      showStatus(
+        resolveLocale(currentLocale) === "ja"
+          ? "設定を保存できませんでした。"
+          : "Could not save settings.",
+        true,
+      );
+      return;
+    }
+  } else {
+    formBaseline = mergeSettings(formBaseline ?? current, formPatch);
+  }
 
   currentLocale = current.uiLocale;
   await applyDomI18n(current.uiLocale, "optionsTitle");
@@ -426,7 +445,7 @@ for (const item of navItems) {
 const autoSaveRoot = document.querySelector(".fce-main");
 autoSaveRoot?.addEventListener("change", (event) => {
   // Import file picker must not auto-save the stale form over imported settings.
-  // インポート用ファイル選択で、古いフォームが上書き保存されないようにする。
+  // インポート用のファイルを選ぶ際に、フォームの古い値で設定を上書きしない。
   if (event.target === toolsImportFile) {
     return;
   }
@@ -439,6 +458,14 @@ autoSaveRoot?.addEventListener("input", (event) => {
     (target instanceof HTMLInputElement && target.type === "range")
   ) {
     schedulePersist(false);
+    return;
+  }
+  if (
+    target instanceof HTMLSelectElement ||
+    (target instanceof HTMLInputElement &&
+      (target.type === "checkbox" || target.type === "radio"))
+  ) {
+    // Checkboxes and selects also fire `change`; skip duplicate immediate IPC.
     return;
   }
   schedulePersist(true);
@@ -462,7 +489,7 @@ toolsExport?.addEventListener("click", () => {
     anchor.href = url;
     anchor.download = `fullscreen-chat-settings-${stamp}.json`;
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     showSaved();
   })();
 });
@@ -486,13 +513,13 @@ toolsImportFile?.addEventListener("change", () => {
       const parsed: unknown = JSON.parse(text);
       const next = await importSettingsBackup(parsed);
       if (!next) {
-        showStatus(t(currentLocale, "toolsImportFailed"));
+        showStatus(t(currentLocale, "toolsImportFailed"), true);
         return;
       }
       await fillForm(next);
       showStatus(t(currentLocale, "toolsImported"));
     } catch {
-      showStatus(t(currentLocale, "toolsImportFailed"));
+      showStatus(t(currentLocale, "toolsImportFailed"), true);
     }
   })();
 });

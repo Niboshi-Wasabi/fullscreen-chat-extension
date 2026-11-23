@@ -282,3 +282,317 @@ test("Twitch danmaku continues after the initial batch expires", async ({
       .filter({ hasText: "Recycled live batch" }),
   ).toHaveCount(1);
 });
+
+test("Twitch VOD deduplicates nested video-chat__message, strips decorative colon, and syncs header timestamps", async ({
+  page,
+  context,
+  extensionWorker,
+}) => {
+  const url = "https://www.twitch.tv/videos/987654321";
+  await context.route(url, (route) =>
+    route.fulfill({
+      contentType: "text/html; charset=utf-8",
+      body: `<!doctype html><head><meta charset="utf-8"><link rel="icon" href="data:,"></head><body>
+        <div class="video-player__container" style="position:relative;width:1000px;height:700px"><video style="width:640px;height:360px"></video></div>
+        <div class="video-chat__message-list-wrapper">
+          <div class="vod-message">
+            <div class="vod-message__header"><button><p>0:00</p></button></div>
+            <span class="chat-author__display-name" data-a-target="chat-message-username" style="color: rgb(0, 204, 153)">Display Name</span><span class="chat-author__intl-login"> (viewera)</span>
+            <div class="video-chat__message"><span>:</span><span><span class="text-fragment" data-a-target="chat-message-text">Due line</span></span></div>
+          </div>
+          <div class="vod-message">
+            <div class="vod-message__header"><button><p>0:20</p></button></div>
+            <span class="chat-author__display-name" data-a-target="chat-message-username">ViewerB</span>
+            <div class="video-chat__message"><span>:</span><span><span class="text-fragment" data-a-target="chat-message-text">Future line</span></span></div>
+          </div>
+        </div>
+      </body>`,
+    }),
+  );
+  const settings = await readSettings(extensionWorker);
+  await setSettings(extensionWorker, {
+    displayMode: "panel",
+    panel: { ...settings.panel, useNativeChat: true },
+    twitch: { ...settings.twitch, thirdPartyEmotes: false },
+    archive: { ...settings.archive, syncOffsetSec: 0 },
+  });
+  await page.goto(url);
+  await expect(page.locator(".fce-panel-row")).toHaveCount(1);
+  await expect(page.locator(".fce-panel-compose")).toBeHidden();
+  await expect(page.locator(".fce-panel-time").first()).toHaveText("0:00");
+  await expect(page.locator(".fce-panel-row").first()).toContainText(
+    "Display Name (viewera)",
+  );
+  await expect(page.locator(".fce-panel-author").first()).toHaveCSS(
+    "color",
+    "rgb(0, 204, 153)",
+  );
+  await expect(page.locator(".fce-panel-sep").first()).toHaveText(": ");
+  await expect(page.locator(".fce-panel-row").first()).toContainText(
+    "Due line",
+  );
+  expect(
+    await page.locator(".fce-panel-row .fce-panel-text").first().textContent(),
+  ).toBe("Due line");
+
+  await setSettings(extensionWorker, {
+    archive: { ...settings.archive, syncOffsetSec: 25 },
+  });
+  await expect(page.locator(".fce-panel-row")).toHaveCount(2);
+  await expect(page.locator(".fce-panel-time").nth(1)).toHaveText("0:20");
+  await expect(page.locator(".fce-panel-row").nth(1)).toContainText("ViewerB");
+  await expect(page.locator(".fce-panel-row").nth(1)).toContainText(
+    "Future line",
+  );
+});
+
+test("Twitch live panel reparents into a late-mounted player and stays bounded when dragged", async ({
+  page,
+  context,
+  extensionWorker,
+}) => {
+  const url = "https://www.twitch.tv/lilsimsie";
+  await context.route(url, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><head><link rel="icon" href="data:,"></head><body style="margin:0;width:1366px;height:860px;"><div data-test-selector="chat-scrollable-area__message-container"><div data-a-target="chat-line-message" data-id="m1"><span data-a-target="chat-message-username">Viewer</span><span data-a-target="chat-line-message-body">Live line</span></div></div></body>',
+    }),
+  );
+  const settings = await readSettings(extensionWorker);
+  await setSettings(extensionWorker, {
+    displayMode: "panel",
+    panel: {
+      ...settings.panel,
+      useNativeChat: false,
+      position: { x: 1050, y: 120, w: 300, h: 600 },
+    },
+  });
+  await page.goto(url);
+  await expect(page.locator("#fce-overlay-panel-host")).toHaveCount(1);
+
+  await page.evaluate(() => {
+    const outer = document.createElement("div");
+    outer.setAttribute("data-a-target", "video-player");
+    outer.style.position = "static";
+    const container = document.createElement("div");
+    container.className = "video-player__container";
+    container.style.cssText =
+      "position:absolute;left:240px;top:50px;width:786px;height:442px;";
+    const video = document.createElement("video");
+    container.append(video);
+    outer.append(container);
+    document.body.append(outer);
+  });
+
+  await expect(
+    page.locator(".video-player__container #fce-overlay-panel-host"),
+  ).toHaveCount(1);
+
+  const playerBox = await page
+    .locator(".video-player__container")
+    .boundingBox();
+  expect(playerBox).not.toBeNull();
+  const afterMountBox = await page.locator(".fce-panel").boundingBox();
+  expect(afterMountBox).not.toBeNull();
+  expect(afterMountBox!.x).toBeGreaterThanOrEqual(playerBox!.x - 1);
+  expect(afterMountBox!.y).toBeGreaterThanOrEqual(playerBox!.y - 1);
+  expect(afterMountBox!.x + afterMountBox!.width).toBeLessThanOrEqual(
+    playerBox!.x + playerBox!.width + 1,
+  );
+  expect(afterMountBox!.y + afterMountBox!.height).toBeLessThanOrEqual(
+    playerBox!.y + playerBox!.height + 1,
+  );
+
+  const handleBox = await page.locator(".fce-panel-handle").boundingBox();
+  expect(handleBox).not.toBeNull();
+  await page.mouse.move(handleBox!.x + 12, handleBox!.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(
+    playerBox!.x + playerBox!.width + 300,
+    playerBox!.y + playerBox!.height + 300,
+    { steps: 5 },
+  );
+  await page.mouse.up();
+
+  const afterDragBox = await page.locator(".fce-panel").boundingBox();
+  expect(afterDragBox).not.toBeNull();
+  expect(afterDragBox!.x).toBeGreaterThanOrEqual(playerBox!.x - 1);
+  expect(afterDragBox!.y).toBeGreaterThanOrEqual(playerBox!.y - 1);
+  expect(afterDragBox!.x + afterDragBox!.width).toBeLessThanOrEqual(
+    playerBox!.x + playerBox!.width + 1,
+  );
+  expect(afterDragBox!.y + afterDragBox!.height).toBeLessThanOrEqual(
+    playerBox!.y + playerBox!.height + 1,
+  );
+});
+
+test("Twitch native panel integrates drag handle and gear into the official chat header row", async ({
+  page,
+  context,
+  extensionWorker,
+}) => {
+  const url = "https://www.twitch.tv/rainbow6jp";
+  await context.route("https://www.twitch.tv/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body:
+        route.request().url() === url
+          ? '<!doctype html><head><link rel="icon" href="data:,"></head><body style="margin:0"><div class="video-player__container" style="position:relative;width:1280px;height:720px"><video></video></div><div data-test-selector="chat-scrollable-area__message-container"><div data-a-target="chat-line-message" data-id="one"><span data-a-target="chat-message-username">Viewer</span><span data-a-target="chat-line-message-body">Live row</span></div></div></body>'
+          : '<!doctype html><head><link rel="icon" href="data:,"></head><body style="margin:0"><div class="stream-chat-header" style="display:flex;justify-content:center;align-items:center;height:40px;position:relative;"><div class="stream-chat-header-title">Stream Chat</div><div style="position:absolute;right:0;"><button aria-label="Users in Chat" style="width:32px;height:32px;">U</button></div></div><textarea data-a-target="chat-input"></textarea></body>',
+    }),
+  );
+  const settings = await readSettings(extensionWorker);
+  await setSettings(extensionWorker, {
+    displayMode: "panel",
+    panel: { ...settings.panel, useNativeChat: true },
+    twitch: { ...settings.twitch, thirdPartyEmotes: false },
+  });
+  await page.goto(url);
+  await expect(page.locator(".fce-panel-native")).toBeVisible();
+  await expect(page.locator(".fce-panel-handle-label")).toBeHidden();
+
+  const panelBox = await page.locator(".fce-panel").boundingBox();
+  const frameBox = await page.locator(".fce-panel-native").boundingBox();
+  const handleBox = await page.locator(".fce-panel-handle").boundingBox();
+  const usersButtonBox = await page
+    .frameLocator("#fce-native-chat-frame")
+    .locator('button[aria-label="Users in Chat"]')
+    .boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(frameBox).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+  expect(usersButtonBox).not.toBeNull();
+
+  // Official chat iframe fills from top of panel (accounting for 1px panel border); handle sits in the 40px header row
+  expect(Math.abs(frameBox!.y - panelBox!.y)).toBeLessThanOrEqual(2);
+  expect(handleBox!.y).toBeLessThanOrEqual(panelBox!.y + 8);
+  expect(handleBox!.y + handleBox!.height).toBeLessThanOrEqual(
+    panelBox!.y + 40,
+  );
+  expect(usersButtonBox!.x + usersButtonBox!.width).toBeLessThanOrEqual(
+    handleBox!.x + 1,
+  );
+
+  // Dragging the compact native handle moves the panel
+  await page.mouse.move(handleBox!.x + 12, handleBox!.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(handleBox!.x - 80, handleBox!.y + 40, { steps: 5 });
+  await page.mouse.up();
+  const movedBox = await page.locator(".fce-panel").boundingBox();
+  expect(movedBox!.x).toBeLessThan(panelBox!.x - 40);
+
+  // Switching to custom list restores the full header bar with "Chat" label
+  await setSettings(extensionWorker, {
+    panel: { ...settings.panel, useNativeChat: false },
+  });
+  await expect(page.locator(".fce-panel-handle-label")).toBeVisible();
+});
+
+test("switching to danmaku mode does not replay previously received comments", async ({
+  page,
+  context,
+  extensionWorker,
+}) => {
+  const url = "https://www.twitch.tv/rainbow6jp";
+  await context.route(url, (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: '<!doctype html><head><link rel="icon" href="data:,"></head><body><div class="video-player__container" style="position:relative;width:1000px;height:700px"><video></video></div><div data-test-selector="chat-scrollable-area__message-container"><div data-a-target="chat-line-message" data-id="old-1"><span data-a-target="chat-message-username">Viewer</span><span data-a-target="chat-line-message-body">Old comment one</span></div><div data-a-target="chat-line-message" data-id="old-2"><span data-a-target="chat-message-username">Viewer</span><span data-a-target="chat-line-message-body">Old comment two</span></div></div></body>',
+    }),
+  );
+  const settings = await readSettings(extensionWorker);
+  await setSettings(extensionWorker, {
+    displayMode: "panel",
+    panel: { ...settings.panel, useNativeChat: false },
+    danmaku: { ...settings.danmaku, enabled: true, speed: 2, density: "high" },
+    twitch: { ...settings.twitch, thirdPartyEmotes: false },
+  });
+  await page.goto(url);
+  await expect(page.locator(".fce-panel-list")).toContainText(
+    "Old comment two",
+  );
+  await expect(page.locator("#fce-danmaku-host")).toHaveCount(0);
+
+  await setSettings(extensionWorker, {
+    displayMode: "danmaku",
+    danmaku: { ...settings.danmaku, enabled: true, speed: 2, density: "high" },
+  });
+  await expect(page.locator("#fce-danmaku-host")).toHaveCount(1);
+  await page.waitForTimeout(300);
+  await expect(page.locator(".fce-danmaku-item")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    document
+      .querySelector(
+        '[data-test-selector="chat-scrollable-area__message-container"]',
+      )!
+      .insertAdjacentHTML(
+        "beforeend",
+        '<div data-a-target="chat-line-message" data-id="new-3"><span data-a-target="chat-message-username">Viewer</span><span data-a-target="chat-line-message-body">Fresh after switch</span></div>',
+      );
+  });
+  await expect(page.locator(".fce-danmaku-item")).toHaveCount(1);
+  await expect(page.locator(".fce-danmaku-item")).toContainText(
+    "Fresh after switch",
+  );
+});
+
+test("Twitch collapsed chat with official panel stays mounted without toggling the page column", async ({
+  page,
+  context,
+  extensionWorker,
+}) => {
+  const url = "https://www.twitch.tv/k4sen";
+  await context.route("https://www.twitch.tv/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body:
+        route.request().url() === url
+          ? `<!doctype html><head><link rel="icon" href="data:,"></head><body style="margin:0">
+              <div class="video-player__container" style="position:relative;width:1000px;height:700px"><video></video></div>
+              <button data-a-target="right-column__toggle-collapse-btn" aria-label="Expand Chat" onclick="window.__toggleClicks=(window.__toggleClicks||0)+1;this.setAttribute('aria-label',this.getAttribute('aria-label')==='Expand Chat'?'Collapse Chat':'Expand Chat')">Toggle</button>
+            </body>`
+          : '<!doctype html><head><link rel="icon" href="data:,"></head><body><div class="stream-chat-header">Stream Chat</div></body>',
+    }),
+  );
+  const settings = await readSettings(extensionWorker);
+  await setSettings(extensionWorker, {
+    displayMode: "panel",
+    panel: { ...settings.panel, useNativeChat: true },
+    danmakuOverlayOnPanel: false,
+    twitch: { ...settings.twitch, thirdPartyEmotes: false },
+  });
+  await page.goto(url);
+  await expect(page.locator("#fce-native-chat-frame")).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __toggleClicks?: number }).__toggleClicks ?? 0,
+    ),
+  ).toBe(0);
+  await expect(page.locator("#fce-native-chat-frame")).toHaveCount(1);
+});
+
+test("custom panel preserves existing row DOM nodes on unchanged applySettings and setNativeChatUrl", async ({
+  page,
+}) => {
+  const sameNode = await exerciseSource(
+    page,
+    "src/views/overlay-panel/index.ts",
+    `
+    initial.panel.useNativeChat=false;
+    const panel=api.createOverlayPanel({onSend:async()=>false});
+    panel.mount(document.body);
+    panel.applySettings(initial);
+    panel.setMessages([{id:'m1',site:'twitch',authorName:'Viewer',text:'First',badges:[],role:'viewer',isCommand:false,timestampMs:0}]);
+    const rowBefore=document.querySelector('.fce-panel-row');
+    panel.applySettings({...initial});
+    panel.setNativeChatUrl(null);
+    const rowAfter=document.querySelector('.fce-panel-row');
+    panel.unmount();
+    return rowBefore!==null && rowBefore===rowAfter;
+  `,
+  );
+  expect(sameNode).toBe(true);
+});

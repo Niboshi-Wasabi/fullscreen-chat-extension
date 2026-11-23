@@ -63,14 +63,14 @@ test("options save filters and keyboard navigation reaches settings categories",
   });
 });
 
-test("content script renders filtered comments, follows fullscreen and can be re-enabled", async ({
+test("content script renders filtered live chat, follows fullscreen and can be re-enabled", async ({
   page,
   context,
   extensionWorker,
 }, testInfo) => {
   const initial = await readSettings(extensionWorker);
   await setSettings(extensionWorker, {
-    displayMode: "danmaku",
+    displayMode: "panel",
     filter: { ...initial.filter, ngWords: ["blocked marker"] },
   });
   await page.goto(fixtureUrl);
@@ -99,18 +99,25 @@ test("content script renders filtered comments, follows fullscreen and can be re
   const beforeMetrics = await session.send("Performance.getMetrics");
   const startedAt = await page.evaluate(() => {
     const started = performance.now();
-    const comments = document.querySelector("#comments");
-    if (!comments) throw new Error("Missing synthetic comments container");
+    const frame = document.querySelector<HTMLIFrameElement>(
+      "#fce-hidden-live-chat-frame",
+    );
+    const frameDoc = frame?.contentDocument;
+    const items = frameDoc?.querySelector("#items");
+    if (!frameDoc || !items) {
+      throw new Error("Missing synthetic live chat container");
+    }
     for (let index = 0; index < 100; index += 1) {
-      const thread = document.createElement("ytd-comment-thread-renderer");
-      const author = document.createElement("span");
-      author.id = "author-text";
+      const row = frameDoc.createElement("yt-live-chat-text-message-renderer");
+      row.id = `burst-${index}`;
+      const author = frameDoc.createElement("span");
+      author.id = "author-name";
       author.textContent = "Synthetic burst viewer";
-      const text = document.createElement("div");
-      text.id = "content-text";
+      const text = frameDoc.createElement("span");
+      text.id = "message";
       text.textContent = `Synthetic burst ${index}`;
-      thread.append(author, text);
-      comments.append(thread);
+      row.append(author, text);
+      items.append(row);
     }
     return started;
   });

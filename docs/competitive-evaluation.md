@@ -102,7 +102,7 @@
 ### 2.4 Danmaku Flow for YouTube
 
 - Store: [Chrome](https://chromewebstore.google.com/detail/danmaku-flow-for-youtube/enfiknigldbijeoafkmnncphbgmhnnje)
-- 対応: YT 弾幕カスタム、プレイヤー内トグル。比較的新しい小規模拡張。
+- 対応: YT 弾幕カスタム、プレーヤー内トグル。比較的新しい小規模拡張。
 
 | V | P | F | D | W | A | C | X | B | S | R | M | 合計 |
 |---|---|---|---|---|---|---|---|---|---|---|---|------|
@@ -204,7 +204,7 @@
 | 拡張 | 概要 | C | P | 全画面 | メモ |
 |------|------|---|---|--------|------|
 | [Youtube Comment Viewer](https://chromewebstore.google.com/detail/youtube-comment-viewer/dbkfbnelkejobnjchbcebhhjeaengldp) | 全画面等でコメント欄オーバーレイ、投稿時ショートカット干渉対策あり | 5 | 4 | あり | **必試**。ライブ横断はなし |
-| Youtube Show Comments Overlay | プレイヤーボタンでコメントオーバーレイ | 4 | 2 | あり | 小規模 |
+| Youtube Show Comments Overlay | プレーヤーボタンでコメントオーバーレイ | 4 | 2 | あり | 小規模 |
 | CommentStream for Youtube | タイムスタンプ同期のライブ風表示 | 3 | 1 | オーバーレイ | 「スレッド全量」とは別体験 |
 | Right Side Comments | サイドバー配置、フルスクリーンコメント連携 | 4 | 3 | 部分 | レイアウト変更系 |
 
@@ -260,7 +260,7 @@
 
 各サイト（YT ライブ、YT アーカイブ、通常 YT、Twitch ライブ、Twitch VOD）で:
 
-1. ブラウザ全画面／プレイヤー全画面でコメントを読む
+1. ブラウザ全画面／プレーヤー全画面でコメントを読む
 2. オーバーレイまたは同等 UI から投稿する
 3. アーカイブ／VOD でシークし追従を確認する
 4. 通常 YT で全画面＋スレッド閲覧（無ければ「未充足」）

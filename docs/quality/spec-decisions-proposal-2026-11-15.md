@@ -43,7 +43,7 @@
 
 - BTTV / FFZ / 7TV の API・CDN — `twitch.thirdPartyEmotes === true` のときのみ fetch。OFF 時は要求しない（実装が既にトグル依存なら文書で保証、未保証なら実装追従）
 
-**使わないもの（維持）**: `<all_urls>`、リモートコード実行、開発者サーバへの送信前提の権限。
+**使わないもの（維持）**: `<all_urls>`、リモートコード実行、開発者サーバーへの送信前提の権限。
 
 承認チェック: [ ] オーナー選択（A/B/C）　[ ] PRD・inventory・privacy・store-listing を同日更新　[ ] manifest-baseline を「承認後の正本」として再記録
 

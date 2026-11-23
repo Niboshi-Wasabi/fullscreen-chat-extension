@@ -6,7 +6,7 @@
 
 ## 決定と理由
 
-- Vitest 5.1.0 + WXT 0.21.5の公式連携を使い、ブラウザAPIはfake-browserで結合検証する。実ブラウザ保証とは分ける。
+- Vitest 5.1.0 + WXT 0.21.5の公式連携を使い、ブラウザ API は fake-browser を使って結合検証する。実ブラウザでの動作は別途確認する。
 - ESLint 10.14.0 + typescript-eslint 8.72.2、Prettier 3.10.1、dependency-cruiser 18.7.2、YAML 2.9.1を固定。ESLint 10.15.0は導入時に待機期間例外を生成したため採用せず、例外なしで解決できる10.14.0を選んだ。pnpmの自動例外は残さない。
 - Node要件とpnpm版はpackage.jsonへ、依存解決はlockfileへ記録。WXT/TypeScriptの既存依存指定は保持する。
 - Nodeから各CLIを直接起動し、最初の失敗で停止・未実行を記録する。PowerShellやcmd固有の連結・シェル展開に依存しない。

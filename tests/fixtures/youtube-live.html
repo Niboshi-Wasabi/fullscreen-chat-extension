@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Synthetic comments fixture</title>
+    <title>Synthetic YouTube Live fixture</title>
     <link rel="icon" href="data:," />
     <style>
       body {
@@ -30,15 +30,12 @@
       button {
         padding: 10px;
       }
-      ytd-comment-thread-renderer {
-        display: block;
-        padding: 12px;
-      }
     </style>
   </head>
   <body>
     <main>
-      <div id="movie_player" class="html5-video-player">
+      <div id="movie_player" class="html5-video-player ytp-live">
+        <span class="badge-style-type-live-now">LIVE</span>
         <video aria-label="Synthetic empty video"></video>
         <div class="ytp-right-controls">
           <button
@@ -50,20 +47,7 @@
           </button>
         </div>
       </div>
-      <ytd-comments id="comments">
-        <ytd-comment-thread-renderer data-id="first"
-          ><a id="author-text">Fixture viewer</a>
-          <div id="content-text">
-            Synthetic hello message
-          </div></ytd-comment-thread-renderer
-        >
-        <ytd-comment-thread-renderer data-id="blocked"
-          ><a id="author-text">Fixture viewer</a>
-          <div id="content-text">
-            Synthetic blocked marker
-          </div></ytd-comment-thread-renderer
-        >
-      </ytd-comments>
+      <ytd-live-chat-frame id="chat"></ytd-live-chat-frame>
     </main>
     <script>
       document

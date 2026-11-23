@@ -18,7 +18,7 @@ fs.mkdirSync(catalogDir, { recursive: true });
 const catalogs = {};
 for (const file of fs.readdirSync(catalogDir)) {
   if (!file.endsWith(".mjs")) continue;
-  // pathToFileURL — Windows ESM import needs file:// / Windows の ESM import は file:// が必要
+  // pathToFileURL — Windows ESM import needs file:// / Windows で ESM を読み込むには file:// URL が必要
   const mod = await import(pathToFileURL(path.join(catalogDir, file)).href);
   Object.assign(catalogs, mod.default ?? mod.catalogs ?? {});
 }

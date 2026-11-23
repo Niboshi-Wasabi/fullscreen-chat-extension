@@ -10,7 +10,7 @@
 
 ## 要件・依存・判断
 
-個人開発、GitHub利用、両ストア公開予定、対象はYouTube/ニコ生/Twitch。Windows優先、将来macOS検討。TypeScript/WXT/pnpmを維持。有料導入は別途承認。
+個人で開発し、GitHub で管理する。両ストアでの公開を予定し、当時は YouTube、ニコニコ生放送、Twitch を対象とした。Windows を優先し、macOS は今後検討する。TypeScript/WXT/pnpmを維持。有料導入は別途承認。
 
 既存の仕様矛盾、Git配置、品質数値は[問題台帳](../quality/issues.md)の未決定事項として管理する。これらを今回の文書追加で解決したとは扱わない。
 

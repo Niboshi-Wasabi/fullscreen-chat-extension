@@ -4,7 +4,7 @@ module.exports = {
       name: "no-cycles",
       severity: "error",
       comment:
-        "Break the cycle using a shared contract / 共通契約へ依存を分離する。",
+        "Break the cycle using a shared contract / 依存関係を共通の契約に切り出して循環を解消する。",
       from: {},
       to: { circular: true },
     },
@@ -12,14 +12,15 @@ module.exports = {
       name: "core-must-not-import-runtime",
       severity: "error",
       comment:
-        "Compose runtime in app / coreから実行層を参照せずappで結線する。",
+        "Compose runtime in app / core から実行層を参照せず、app で組み合わせる。",
       from: { path: "^src/core/" },
       to: { path: "^src/(app|adapters|views|entrypoints|ui)/" },
     },
     {
       name: "views-must-not-import-adapters",
       severity: "error",
-      comment: "Pass data from app / サイト取得はapp経由でViewへ渡す。",
+      comment:
+        "Pass data from app / サイトから取得したデータは、app を経由して View に渡す。",
       from: { path: "^src/(views|ui)/" },
       to: { path: "^src/(adapters|app|entrypoints)/" },
     },

@@ -13,8 +13,6 @@ hydrateSiteIcons();
 const enabledInput = document.querySelector<HTMLInputElement>("#enabled");
 const youtubeLiveInput =
   document.querySelector<HTMLInputElement>("#youtubeLive");
-const youtubeCommentsInput =
-  document.querySelector<HTMLInputElement>("#youtubeComments");
 const twitchInput = document.querySelector<HTMLInputElement>("#twitch");
 const uiLocaleSelect = document.querySelector<HTMLSelectElement>("#uiLocale");
 const openOptions = document.querySelector<HTMLButtonElement>("#openOptions");
@@ -36,9 +34,6 @@ async function refresh(): Promise<void> {
   }
   if (youtubeLiveInput) {
     youtubeLiveInput.checked = settings.youtubeLive.enabled;
-  }
-  if (youtubeCommentsInput) {
-    youtubeCommentsInput.checked = settings.youtubeComments.enabled;
   }
   if (twitchInput) {
     twitchInput.checked = settings.twitch.enabled;
@@ -64,12 +59,6 @@ for (const radio of modeRadios) {
 youtubeLiveInput?.addEventListener("change", () => {
   void saveSettings({
     youtubeLive: { enabled: Boolean(youtubeLiveInput.checked) },
-  });
-});
-
-youtubeCommentsInput?.addEventListener("change", () => {
-  void saveSettings({
-    youtubeComments: { enabled: Boolean(youtubeCommentsInput.checked) },
   });
 });
 

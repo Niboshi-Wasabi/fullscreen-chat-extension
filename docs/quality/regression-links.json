@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "note": "Maps live-site findings to anonymized synthetic regressions and checklist recheck status. Chat bodies, viewer identifiers, and credentials must not appear here or in linked fixtures. Procedure: docs/quality/regression-from-live.md",
+  "links": [
+    {
+      "id": "RL-028",
+      "issueId": "ISS-028",
+      "checklistIds": ["YL-6", "TL-6"],
+      "title": "Background tab must not steal the shared popout URL",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "integration",
+        "path": "tests/integration/background-popout.test.ts",
+        "testNameContains": "ignores a background tab so it cannot replace the watched chat"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-18 Chrome/Firefox live records confirmed owner-tab retargeting; see issues.md ISS-028"
+      }
+    },
+    {
+      "id": "RL-029",
+      "issueId": "ISS-029",
+      "checklistIds": ["YL-1", "TL-1", "TL-3"],
+      "title": "Official overlay stays off while the page chat column is open",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "unit",
+        "path": "tests/unit/page-chat-column.test.ts",
+        "testNameContains": "hides the official overlay while the page chat column is open"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-18 live records for YT archive and Twitch live; post-review path still pending separate live pass"
+      }
+    },
+    {
+      "id": "RL-031",
+      "issueId": "ISS-031",
+      "checklistIds": ["YL-6", "TL-6", "X-3"],
+      "title": "User-closed popout/PiP returns display mode to panel",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "integration",
+        "path": "tests/integration/background-popout.test.ts",
+        "testNameContains": "returns to the panel only when the user closes the popout"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-18 Chrome/Firefox closed PiP and OS popout; later focus-race fix still pending live recheck"
+      }
+    },
+    {
+      "id": "RL-031b",
+      "issueId": "ISS-031",
+      "checklistIds": ["X-3"],
+      "title": "After user closes PiP, focus must not reopen PiP or OS fallback",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "integration",
+        "path": "tests/integration/runtime-lifetime.test.ts",
+        "testNameContains": "does not ask for PiP or the OS fallback again after the user closed PiP"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-19 Chrome/Firefox Twitch live: after external PiP close, focus did not reopen PiP/OS fallback; panel returned (runs rl-031b-033b-2026-11-19-chrome, rl-031b-033b-2026-11-19-firefox-2)."
+      }
+    },
+    {
+      "id": "RL-032",
+      "issueId": "ISS-032",
+      "checklistIds": ["X-3"],
+      "title": "Pin on top requests Document PiP inside the user gesture",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "integration",
+        "path": "tests/integration/runtime-lifetime.test.ts",
+        "testNameContains": "requests PiP inside the pin click, then switches to popout mode"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-18 Chrome/Firefox Pin on top opened PiP; capability-absent browsers still untested"
+      }
+    },
+    {
+      "id": "RL-033",
+      "issueId": "ISS-033",
+      "checklistIds": ["TL-3", "X-3"],
+      "title": "PiP shows official live chat embed when native chat UI is on",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "integration",
+        "path": "tests/integration/runtime-lifetime.test.ts",
+        "testNameContains": "shows the official live chat in PiP but keeps the list for replays"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-18 Twitch live PiP embed confirmed on Chrome/Firefox; YT live/replay PiP still pending"
+      }
+    },
+    {
+      "id": "RL-033b",
+      "issueId": "ISS-033",
+      "checklistIds": ["X-3"],
+      "title": "PiP close() must not report an external user close",
+      "foundIn": "live-site",
+      "anonymized": true,
+      "synthetic": {
+        "kind": "unit",
+        "path": "tests/unit/pip-chat.test.ts",
+        "testNameContains": "reports a close by the user, not one requested through close()"
+      },
+      "liveRecheck": {
+        "status": "done",
+        "reason": "2026-11-19 Chrome/Firefox Twitch live: popup Mode Panel closed PiP via close() and returned overlay; external PiP close also returned panel (runs rl-031b-033b-2026-11-19-chrome, rl-031b-033b-2026-11-19-firefox-2)."
+      }
+    }
+  ]
+}

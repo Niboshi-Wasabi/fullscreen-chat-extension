@@ -18,15 +18,42 @@ export interface FilterResult {
  * Apply NG / role / density filters across all display modes.
  * 全表示モード共通の NG・ロール・間引きフィルタ。
  */
+type CompiledNgMatcher = (text: string, lowerText: string) => boolean;
+
+function compileNgMatcher(
+  settings: ExtensionSettings["filter"],
+): CompiledNgMatcher | null {
+  const words = settings.ngWords.filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return null;
+  }
+  if (!settings.ngRegex) {
+    const lowerWords = words.map((word) => word.toLowerCase());
+    return (_text, lowerText) =>
+      lowerWords.some((word) => lowerText.includes(word));
+  }
+  const matchers = words.map((pattern) => {
+    try {
+      const regex = new RegExp(pattern, "i");
+      return (text: string) => regex.test(text);
+    } catch {
+      const lower = pattern.toLowerCase();
+      return (_text: string, lowerText: string) => lowerText.includes(lower);
+    }
+  });
+  return (text, lowerText) => matchers.some((match) => match(text, lowerText));
+}
+
 export function applyNgFilter(
   messages: NormalizedMessage[],
   settings: ExtensionSettings["filter"],
 ): FilterResult {
   let droppedCount = 0;
   const visible: NormalizedMessage[] = [];
+  const ngMatcher = compileNgMatcher(settings);
 
   for (const message of messages) {
-    if (shouldDrop(message, settings)) {
+    if (shouldDrop(message, settings, ngMatcher)) {
       droppedCount += 1;
       continue;
     }
@@ -44,17 +71,18 @@ export function applyNgFilter(
   };
 }
 
-/** True when NG rules would hide this line / NG 規則で隠すべき行なら true */
+/** True when NG rules would hide this line / NG フィルタで非表示にする投稿なら true */
 export function shouldDropMessage(
   message: NormalizedMessage,
   settings: ExtensionSettings["filter"],
 ): boolean {
-  return shouldDrop(message, settings);
+  return shouldDrop(message, settings, compileNgMatcher(settings));
 }
 
 function shouldDrop(
   message: NormalizedMessage,
   settings: ExtensionSettings["filter"],
+  ngMatcher: CompiledNgMatcher | null,
 ): boolean {
   // Always keep the viewer's own lines / 自分の投稿は常に残す
   if (message.isSelf) {
@@ -77,44 +105,25 @@ function shouldDrop(
     return true;
   }
 
-  const authorKey = (message.authorId ?? message.authorName).toLowerCase();
+  const authorKeys = [message.authorId, message.authorName, message.authorLogin]
+    .filter((entry): entry is string => Boolean(entry))
+    .map((entry) => entry.toLowerCase());
   if (
-    settings.blockedUsers.some((entry) => entry.toLowerCase() === authorKey)
+    settings.blockedUsers.some((entry) => {
+      const target = entry.trim().toLowerCase();
+      return target.length > 0 && authorKeys.includes(target);
+    })
   ) {
     return true;
   }
 
-  if (matchesNgWords(message.text, settings) && !protectedByRole) {
+  if (
+    ngMatcher &&
+    ngMatcher(message.text, message.text.toLowerCase()) &&
+    !protectedByRole
+  ) {
     return true;
   }
 
   return false;
-}
-
-function matchesNgWords(
-  text: string,
-  settings: ExtensionSettings["filter"],
-): boolean {
-  if (settings.ngWords.length === 0) {
-    return false;
-  }
-
-  if (settings.ngRegex) {
-    for (const pattern of settings.ngWords) {
-      try {
-        if (new RegExp(pattern, "i").test(text)) {
-          return true;
-        }
-      } catch {
-        // Invalid regex from user input — treat as literal / 不正な正規表現はリテラル扱い
-        if (text.toLowerCase().includes(pattern.toLowerCase())) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  const lower = text.toLowerCase();
-  return settings.ngWords.some((word) => lower.includes(word.toLowerCase()));
 }

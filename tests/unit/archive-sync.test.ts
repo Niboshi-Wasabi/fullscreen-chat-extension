@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { createArchiveSync } from "../../src/core/archive-sync";
+import { describe, expect, it, vi } from "vitest";
+import {
+  createArchiveSync,
+  parseClockToSeconds,
+} from "../../src/core/archive-sync";
 import type { NormalizedMessage } from "../../src/core/message";
 import { message } from "../helpers";
 
@@ -66,4 +69,62 @@ it("releases a late scrape within maxSkew once, but skips expired and future lin
   sync.onMediaTime(100.1, { seeked: false });
   sync.onMediaTime(100.2, { seeked: false });
   expect(released.map((line) => line.id)).toEqual(["late"]);
+});
+
+it("treats large timeupdate jumps as seeks, pauses during seeking, and replays already-loaded scenes", () => {
+  const released: NormalizedMessage[] = [];
+  const onSeekJump = vi.fn();
+  const sync = createArchiveSync({
+    getOffsetSec: () => 0,
+    getMaxSkewSec: () => 2,
+    onDue: (line) => released.push(line),
+    onSeekJump,
+  });
+  for (const sec of [10, 11, 100, 200, 300, 499, 500]) {
+    sync.ingest(message({ id: `m-${sec}`, videoOffsetSec: sec }));
+  }
+
+  // Play at 11s -> releases m-10, m-11
+  sync.onMediaTime(11, { seeked: false });
+  expect(released.map((m) => m.id)).toEqual(["m-10", "m-11"]);
+  released.length = 0;
+
+  // Scrubbing while seeking=true clears board without emitting intermediate scrub positions
+  sync.onMediaTime(200, { seeked: true, seeking: true });
+  sync.onMediaTime(300, { seeked: true, seeking: true });
+  expect(onSeekJump).toHaveBeenCalledTimes(2);
+  expect(released).toEqual([]);
+
+  // Large forward jump even without seeked=true does not dump 100/200/300
+  sync.onMediaTime(500, { seeked: false });
+  expect(released.map((m) => m.id)).toEqual(["m-499", "m-500"]);
+  released.length = 0;
+
+  // Returning to already-loaded 10s scene replays m-10 and m-11 as time advances
+  sync.onMediaTime(10, { seeked: true, seeking: false });
+  expect(released.map((m) => m.id)).toEqual(["m-10"]);
+  sync.onMediaTime(11, { seeked: false });
+  expect(released.map((m) => m.id)).toEqual(["m-10", "m-11"]);
+});
+
+it("parses replay clock timestamps and preserves negative pre-stream stamps", () => {
+  expect(parseClockToSeconds("-0:47")).toBeUndefined();
+  expect(parseClockToSeconds("-0:47", { allowNegative: true })).toBe(-47);
+  expect(parseClockToSeconds("-28:41", { allowNegative: true })).toBe(-1721);
+  expect(parseClockToSeconds("4:51", { allowNegative: true })).toBe(291);
+  expect(parseClockToSeconds("1:02:05")).toBe(3725);
+
+  const released: NormalizedMessage[] = [];
+  const sync = createArchiveSync({
+    getOffsetSec: () => 0,
+    getMaxSkewSec: () => 2,
+    onDue: (line) => released.push(line),
+  });
+  sync.ingest(message({ id: "early-pre", videoOffsetSec: -1721 }));
+  sync.ingest(message({ id: "just-pre", videoOffsetSec: -1 }));
+  sync.ingest(message({ id: "start", videoOffsetSec: 1 }));
+  sync.onMediaTime(0, { seeked: true, initial: true });
+  expect(released.map((m) => m.id)).toEqual(["just-pre"]);
+  sync.onMediaTime(1, { seeked: false });
+  expect(released.map((m) => m.id)).toEqual(["just-pre", "start"]);
 });

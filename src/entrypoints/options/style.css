@@ -68,7 +68,7 @@ body.fce-options {
   min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--fce-border);
-  border-radius: var(--fce-radius);
+  border-radius: var(--fce-radius-sm);
   background: var(--fce-bg-elevated, var(--fce-bg));
   color: var(--fce-fg);
   font: inherit;
@@ -174,18 +174,15 @@ body.fce-options {
   }
 
   .fce-nav {
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    overflow-x: auto;
-  }
-
-  .fce-nav-item span:not(.ms) {
-    display: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .fce-nav-item {
-    justify-content: center;
-    min-width: 44px;
+    width: auto;
+    padding: 8px 10px;
+    min-height: 36px;
   }
 
   .fce-main {
