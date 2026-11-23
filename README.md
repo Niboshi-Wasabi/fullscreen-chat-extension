@@ -1,8 +1,21 @@
 # Fullscreen Chat Extension
 
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit)
+[![GitHub Release](https://img.shields.io/github/v/release/Niboshi-Wasabi/fullscreen-chat-extension?label=release)](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/releases/latest)
+
 YouTube や Twitch の動画を全画面で見ながら、チャットを読めるブラウザー拡張機能です。投稿できる配信ではコメントも送れます。
 
 Chrome などの Chromium 系ブラウザーと Firefox に対応しています。ライセンスは MIT です。
+
+[![Chrome 用 ZIP をダウンロード](https://img.shields.io/badge/Download-Chrome%20ZIP-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/releases/download/v0.1.0/fullscreen-chat-extension-0.1.0-chrome.zip)
+[![Firefox 用 ZIP をダウンロード](https://img.shields.io/badge/Download-Firefox%20ZIP-FF7139?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/releases/download/v0.1.0/fullscreen-chat-extension-0.1.0-firefox.zip)
+
+ダウンロードボタンは v0.1.0 の ZIP です。最新版は上の release バッジから確認できます。
+
+[![使い方](https://img.shields.io/badge/Guide-%E4%BD%BF%E3%81%84%E6%96%B9-0078D4?style=for-the-badge&logo=readthedocs&logoColor=white)](#使い方)
+[![不具合を報告](https://img.shields.io/badge/GitHub-%E4%B8%8D%E5%85%B7%E5%90%88%E3%82%92%E5%A0%B1%E5%91%8A-333333?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/issues)
+[![プライバシーポリシー](https://img.shields.io/badge/Privacy-%E3%83%9D%E3%83%AA%E3%82%B7%E3%83%BC-6C757D?style=for-the-badge&logo=shield&logoColor=white)](https://niboshi-wasabi.github.io/fullscreen-chat-extension/)
 
 ## インストール
 
