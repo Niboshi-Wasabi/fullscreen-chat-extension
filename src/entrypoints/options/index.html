@@ -18,7 +18,7 @@
       </div>
       <nav
         class="fce-nav"
-        data-i18n-title="navAria"
+        data-i18n-aria-label="navAria"
         aria-label="Settings categories"
       >
         <button
@@ -115,7 +115,7 @@
           </h2>
           <div class="fce-section-card">
             <p class="fce-shortcut-list" data-i18n="shortcutsHelp">
-              Alt+Shift+C toggle · M mode · D danmaku · P popout
+              Alt+Shift+C toggle · M mode · D danmaku
             </p>
           </div>
         </div>
@@ -676,49 +676,6 @@
                 <span class="fce-switch-track" aria-hidden="true"></span>
               </label>
             </div>
-            <div class="fce-row">
-              <span class="ms ms-sm fce-row-icon" aria-hidden="true">sort</span>
-              <div class="fce-row-text">
-                <span
-                  id="ytCommentsSort-label"
-                  class="fce-row-title"
-                  data-i18n="ytCommentsSort"
-                  >Comment sort</span
-                >
-              </div>
-              <select
-                aria-labelledby="ytCommentsSort-label"
-                id="ytCommentsSort"
-                class="fce-select fce-control"
-              >
-                <option value="top" data-i18n="ytCommentsSortTop">Top</option>
-                <option value="newest" data-i18n="ytCommentsSortNew">
-                  Newest
-                </option>
-              </select>
-            </div>
-            <div class="fce-row">
-              <span class="ms ms-sm fce-row-icon" aria-hidden="true"
-                >expand_more</span
-              >
-              <div class="fce-row-text">
-                <span
-                  id="ytCommentsLoadMore-label"
-                  class="fce-row-title"
-                  data-i18n="ytCommentsLoadMore"
-                  >Load more comments</span
-                >
-              </div>
-              <label class="fce-switch fce-control">
-                <input
-                  aria-labelledby="ytCommentsLoadMore-label"
-                  id="ytCommentsLoadMore"
-                  type="checkbox"
-                  role="switch"
-                />
-                <span class="fce-switch-track" aria-hidden="true"></span>
-              </label>
-            </div>
           </div>
         </div>
 
@@ -746,7 +703,7 @@
                   Current live only
                 </option>
                 <option value="anyWatchPage" data-i18n="popoutAnyPage">
-                  Any watch / channel page
+                  Also Twitch channel pages
                 </option>
               </select>
             </div>
@@ -781,9 +738,12 @@
                   data-i18n="popoutAlwaysOnTop"
                   >Always on top</span
                 >
-                <span class="fce-row-hint" data-i18n="popoutAlwaysOnTopHint"
-                  >Uses Document PiP when available. Normal OS popouts cannot
-                  stay on top in Chrome.</span
+                <span
+                  id="popoutAlwaysOnTopHint"
+                  class="fce-row-hint"
+                  data-i18n="popoutAlwaysOnTopHint"
+                  >Adds “Pin on top” to the panel menu. It opens the chat in a
+                  Document PiP window that stays above other windows.</span
                 >
               </div>
               <label class="fce-switch fce-control">

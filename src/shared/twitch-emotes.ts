@@ -1,9 +1,10 @@
 /**
  * BTTV / FFZ / 7TV emote maps for Twitch chat text tokens.
- * Twitch チャット語句向け BTTV / FFZ / 7TV エモート表。
+ * Twitch チャットで使う BTTV、FFZ、7TV のエモート一覧。
  */
 
 import type { MessageSegment } from "../core/message";
+import { isSafeHttpsImageUrl } from "./safe-image-url";
 
 export type EmoteCodeMap = Map<string, { src: string; alt: string }>;
 
@@ -56,19 +57,19 @@ export async function loadTwitchEmoteMap(options: {
     return cache.map;
   }
   const map: EmoteCodeMap = new Map();
-  await Promise.all([
+  const outcomes = await Promise.all([
     mergeBttv(map, options.channelId, options.signal),
     mergeFfz(map, options.channelLogin, options.signal),
     mergeSevenTv(map, options.channelId, options.signal),
   ]);
-  if (!options.signal?.aborted)
+  if (!options.signal?.aborted && outcomes.some(Boolean))
     cache = { channelKey, loadedAtMs: Date.now(), map };
   return map;
 }
 
 /**
  * Expand plain-text emote codes into image segments (keeps existing images).
- * 平文エモートコードを画像断片へ展開（既存画像は維持）。
+ * テキスト中のエモートコードを画像要素に置き換える。既に画像の部分は維持する。
  */
 export function applyEmoteMapToSegments(
   segments: MessageSegment[] | undefined,
@@ -146,22 +147,32 @@ async function mergeBttv(
   map: EmoteCodeMap,
   channelId: string | null,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
+  let ok = false;
   try {
     const globalRes = await fetch(
       "https://api.betterttv.net/3/cached/emotes/global",
       { signal },
     );
     if (globalRes.ok) {
-      const list = (await globalRes.json()) as Array<{
-        id: string;
-        code: string;
-      }>;
-      for (const entry of list) {
-        map.set(entry.code, {
-          alt: entry.code,
-          src: `https://cdn.betterttv.net/emote/${entry.id}/1x.webp`,
-        });
+      ok = true;
+      const list: unknown = await globalRes.json();
+      if (Array.isArray(list)) {
+        for (const entry of list) {
+          if (
+            entry &&
+            typeof entry === "object" &&
+            typeof (entry as { id?: unknown }).id === "string" &&
+            typeof (entry as { code?: unknown }).code === "string"
+          ) {
+            const { id, code } = entry as { id: string; code: string };
+            if (!id || !code) continue;
+            map.set(code, {
+              alt: code,
+              src: `https://cdn.betterttv.net/emote/${encodeURIComponent(id)}/1x.webp`,
+            });
+          }
+        }
       }
     }
     if (channelId) {
@@ -170,37 +181,50 @@ async function mergeBttv(
         { signal },
       );
       if (userRes.ok) {
+        ok = true;
         const user = (await userRes.json()) as {
-          channelEmotes?: Array<{ id: string; code: string }>;
-          sharedEmotes?: Array<{ id: string; code: string }>;
+          channelEmotes?: Array<{ id?: unknown; code?: unknown }>;
+          sharedEmotes?: Array<{ id?: unknown; code?: unknown }>;
         };
-        for (const entry of [
-          ...(user.channelEmotes ?? []),
-          ...(user.sharedEmotes ?? []),
-        ]) {
-          map.set(entry.code, {
-            alt: entry.code,
-            src: `https://cdn.betterttv.net/emote/${entry.id}/1x.webp`,
-          });
+        const entries = [
+          ...(Array.isArray(user?.channelEmotes) ? user.channelEmotes : []),
+          ...(Array.isArray(user?.sharedEmotes) ? user.sharedEmotes : []),
+        ];
+        for (const entry of entries) {
+          if (
+            entry &&
+            typeof entry.id === "string" &&
+            typeof entry.code === "string" &&
+            entry.id &&
+            entry.code
+          ) {
+            map.set(entry.code, {
+              alt: entry.code,
+              src: `https://cdn.betterttv.net/emote/${encodeURIComponent(entry.id)}/1x.webp`,
+            });
+          }
         }
       }
     }
   } catch {
     // Optional dependency — ignore network failures / 任意依存。通信失敗は無視
   }
+  return ok;
 }
 
 async function mergeFfz(
   map: EmoteCodeMap,
   channelLogin: string | null,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
+  let ok = false;
   try {
     const globalRes = await fetch(
       "https://api.frankerfacez.com/v1/set/global",
       { signal },
     );
     if (globalRes.ok) {
+      ok = true;
       const payload = (await globalRes.json()) as {
         sets?: Record<string, { emoticons?: FfzEmote[] }>;
       };
@@ -219,6 +243,7 @@ async function mergeFfz(
         { signal },
       );
       if (roomRes.ok) {
+        ok = true;
         const room = (await roomRes.json()) as {
           sets?: Record<string, { emoticons?: FfzEmote[] }>;
         };
@@ -235,6 +260,7 @@ async function mergeFfz(
   } catch {
     // ignore
   }
+  return ok;
 }
 
 interface FfzEmote {
@@ -249,19 +275,24 @@ function pickFfzSrc(emote: FfzEmote): string | null {
   if (!candidate) {
     return null;
   }
-  return candidate.startsWith("//") ? `https:${candidate}` : candidate;
+  const normalized = candidate.startsWith("//")
+    ? `https:${candidate}`
+    : candidate;
+  return isSafeHttpsImageUrl(normalized) ? normalized : null;
 }
 
 async function mergeSevenTv(
   map: EmoteCodeMap,
   channelId: string | null,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<boolean> {
+  let ok = false;
   try {
     const globalRes = await fetch("https://7tv.io/v3/emote-sets/global", {
       signal,
     });
     if (globalRes.ok) {
+      ok = true;
       const payload = (await globalRes.json()) as {
         emotes?: SevenTvEmote[];
       };
@@ -278,6 +309,7 @@ async function mergeSevenTv(
         { signal },
       );
       if (userRes.ok) {
+        ok = true;
         const user = (await userRes.json()) as {
           emote_set?: { emotes?: SevenTvEmote[] };
         };
@@ -292,6 +324,7 @@ async function mergeSevenTv(
   } catch {
     // ignore
   }
+  return ok;
 }
 
 interface SevenTvEmote {
@@ -317,5 +350,6 @@ function pickSevenTvSrc(emote: SevenTvEmote): string | null {
     return null;
   }
   const base = host.url.startsWith("//") ? `https:${host.url}` : host.url;
-  return `${base}/${file.name}`;
+  const resolved = `${base}/${file.name}`;
+  return isSafeHttpsImageUrl(resolved) ? resolved : null;
 }

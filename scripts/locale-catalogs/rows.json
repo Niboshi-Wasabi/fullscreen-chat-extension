@@ -78,7 +78,7 @@
     "O danmaku é para uso pessoal/comunitário. Não oficial; sem afiliação com YouTube, Twitch ou Dwango.",
     "Salvar",
     "Salvo.",
-    "Alt+Shift+C alternar · M modo · D danmaku · P janela"
+    "Alt+Shift+C alternar · M modo · D danmaku"
   ],
   "pt-PT": [
     "Chat em ecrã inteiro",
@@ -159,7 +159,7 @@
     "O danmaku é para uso pessoal/comunitário. Não oficial; sem afiliação com YouTube, Twitch ou Dwango.",
     "Guardar",
     "Guardado.",
-    "Alt+Shift+C alternar · M modo · D danmaku · P janela"
+    "Alt+Shift+C alternar · M modo · D danmaku"
   ],
   "it": [
     "Chat a schermo intero",
@@ -240,7 +240,7 @@
     "Il danmaku è per uso personale/comunitario. Non ufficiale; non affiliato a YouTube, Twitch o Dwango.",
     "Salva",
     "Salvato.",
-    "Alt+Shift+C attiva · M modalità · D danmaku · P finestra"
+    "Alt+Shift+C attiva · M modalità · D danmaku"
   ],
   "nl": [
     "Chat volledig scherm",
@@ -321,7 +321,7 @@
     "Danmaku is voor persoonlijk/communitygebruik. Niet officieel; niet gelieerd aan YouTube, Twitch of Dwango.",
     "Opslaan",
     "Opgeslagen.",
-    "Alt+Shift+C schakelen · M modus · D danmaku · P pop-out"
+    "Alt+Shift+C schakelen · M modus · D danmaku"
   ],
   "pl": [
     "Czat na pełnym ekranie",
@@ -402,7 +402,7 @@
     "Danmaku jest do użytku osobistego/społecznościowego. Nieoficjalne; bez powiązania z YouTube, Twitch ani Dwango.",
     "Zapisz",
     "Zapisano.",
-    "Alt+Shift+C przełącz · M tryb · D danmaku · P okno"
+    "Alt+Shift+C przełącz · M tryb · D danmaku"
   ],
   "ru": [
     "Чат на весь экран",
@@ -483,7 +483,7 @@
     "Данмаку — для личного/сообщественного использования. Неофициально; не связано с YouTube, Twitch или Dwango.",
     "Сохранить",
     "Сохранено.",
-    "Alt+Shift+C переключить · M режим · D данмаку · P окно"
+    "Alt+Shift+C переключить · M режим · D данмаку"
   ],
   "uk": [
     "Чат на весь екран",
@@ -564,7 +564,7 @@
     "Данмаку — для особистого/спільнотного використання. Неофіційно; не пов’язано з YouTube, Twitch чи Dwango.",
     "Зберегти",
     "Збережено.",
-    "Alt+Shift+C перемкнути · M режим · D данмаку · P вікно"
+    "Alt+Shift+C перемкнути · M режим · D данмаку"
   ],
   "ar": [
     "دردشة ملء الشاشة",
@@ -645,7 +645,7 @@
     "الدانماكو للاستخدام الشخصي/المجتمعي. غير رسمي؛ غير مرتبط بـ YouTube أو Twitch أو Dwango.",
     "حفظ",
     "تم الحفظ.",
-    "Alt+Shift+C تبديل · M وضع · D دانماكو · P نافذة"
+    "Alt+Shift+C تبديل · M وضع · D دانماكو"
   ],
   "he": [
     "צ'אט במסך מלא",
@@ -726,7 +726,7 @@
     "דנמאקו לשימוש אישי/קהילתי. לא רשמי; ללא קשר ל-YouTube, Twitch או Dwango.",
     "שמור",
     "נשמר.",
-    "Alt+Shift+C החלף · M מצב · D דנמאקו · P חלון"
+    "Alt+Shift+C החלף · M מצב · D דנמאקו"
   ],
   "fa": [
     "چت تمام‌صفحه",
@@ -807,7 +807,7 @@
     "دانماکو برای استفاده شخصی/اجتماعی است. غیررسمی؛ وابسته به YouTube، Twitch یا Dwango نیست.",
     "ذخیره",
     "ذخیره شد.",
-    "Alt+Shift+C تغییر · M حالت · D دانماکو · P پنجره"
+    "Alt+Shift+C تغییر · M حالت · D دانماکو"
   ],
   "hi": [
     "फ़ुलस्क्रीन चैट",
@@ -888,7 +888,7 @@
     "डैनमाकु व्यक्तिगत/सामुदायिक उपयोग के लिए है। अनौपचारिक; YouTube, Twitch या Dwango से संबद्ध नहीं।",
     "सहेजें",
     "सहेजा गया।",
-    "Alt+Shift+C टॉगल · M मोड · D डैनमाकु · P पॉपआउट"
+    "Alt+Shift+C टॉगल · M मोड · D डैनमाकु"
   ],
   "bn": [
     "ফুলস্ক্রিন চ্যাট",
@@ -969,7 +969,7 @@
     "ড্যানমাকু ব্যক্তিগত/কমিউনিটি ব্যবহারের জন্য। অনানুষ্ঠানিক; YouTube, Twitch বা Dwango-এর সাথে যুক্ত নয়।",
     "সংরক্ষণ",
     "সংরক্ষিত।",
-    "Alt+Shift+C টগল · M মোড · D ড্যানমাকু · P পপআউট"
+    "Alt+Shift+C টগল · M মোড · D ড্যানমাকু"
   ],
   "th": [
     "แชทเต็มจอ",
@@ -1050,7 +1050,7 @@
     "แดนมาคุสำหรับใช้ส่วนตัว/ชุมชน ไม่เป็นทางการ และไม่เกี่ยวข้องกับ YouTube, Twitch หรือ Dwango",
     "บันทึก",
     "บันทึกแล้ว",
-    "Alt+Shift+C สลับ · M โหมด · D แดนมาคุ · P หน้าต่าง"
+    "Alt+Shift+C สลับ · M โหมด · D แดนมาคุ"
   ],
   "vi": [
     "Chat toàn màn hình",
@@ -1131,7 +1131,7 @@
     "Đạn màn dùng cho cá nhân/cộng đồng. Không chính thức; không liên kết với YouTube, Twitch hay Dwango.",
     "Lưu",
     "Đã lưu.",
-    "Alt+Shift+C bật tắt · M chế độ · D đạn màn · P cửa sổ"
+    "Alt+Shift+C bật tắt · M chế độ · D đạn màn"
   ],
   "id": [
     "Obrolan layar penuh",
@@ -1212,7 +1212,7 @@
     "Danmaku untuk penggunaan pribadi/komunitas. Tidak resmi; tidak berafiliasi dengan YouTube, Twitch, atau Dwango.",
     "Simpan",
     "Tersimpan.",
-    "Alt+Shift+C alih · M mode · D danmaku · P pop-out"
+    "Alt+Shift+C alih · M mode · D danmaku"
   ],
   "ms": [
     "Sembang skrin penuh",
@@ -1293,7 +1293,7 @@
     "Danmaku untuk kegunaan peribadi/komuniti. Tidak rasmi; tidak bergabung dengan YouTube, Twitch atau Dwango.",
     "Simpan",
     "Disimpan.",
-    "Alt+Shift+C togol · M mod · D danmaku · P tetingkap"
+    "Alt+Shift+C togol · M mod · D danmaku"
   ],
   "fil": [
     "Fullscreen Chat",
@@ -1374,7 +1374,7 @@
     "Ang danmaku ay para sa personal/community na gamit. Hindi opisyal; hindi kaugnay ng YouTube, Twitch, o Dwango.",
     "I-save",
     "Na-save.",
-    "Alt+Shift+C i-toggle · M mode · D danmaku · P popout"
+    "Alt+Shift+C i-toggle · M mode · D danmaku"
   ],
   "tr": [
     "Tam ekran sohbet",
@@ -1455,7 +1455,7 @@
     "Danmaku kişisel/topluluk kullanımı içindir. Resmi değildir; YouTube, Twitch veya Dwango ile bağlantılı değildir.",
     "Kaydet",
     "Kaydedildi.",
-    "Alt+Shift+C aç/kapat · M mod · D danmaku · P pencere"
+    "Alt+Shift+C aç/kapat · M mod · D danmaku"
   ],
   "cs": [
     "Chat na celou obrazovku",
@@ -1536,7 +1536,7 @@
     "Danmaku je pro osobní/komunitní použití. Neoficiální; není spojeno s YouTube, Twitch ani Dwango.",
     "Uložit",
     "Uloženo.",
-    "Alt+Shift+C přepnout · M režim · D danmaku · P okno"
+    "Alt+Shift+C přepnout · M režim · D danmaku"
   ],
   "sk": [
     "Chat na celú obrazovku",
@@ -1617,7 +1617,7 @@
     "Danmaku je na osobné/komunitné použitie. Neoficiálne; nie je spojené s YouTube, Twitch ani Dwango.",
     "Uložiť",
     "Uložené.",
-    "Alt+Shift+C prepnúť · M režim · D danmaku · P okno"
+    "Alt+Shift+C prepnúť · M režim · D danmaku"
   ],
   "hu": [
     "Teljes képernyős chat",
@@ -1698,7 +1698,7 @@
     "A danmaku személyes/közösségi használatra való. Nem hivatalos; nem kapcsolódik a YouTube-hoz, Twitchhez vagy Dwangohoz.",
     "Mentés",
     "Mentve.",
-    "Alt+Shift+C váltás · M mód · D danmaku · P ablak"
+    "Alt+Shift+C váltás · M mód · D danmaku"
   ],
   "ro": [
     "Chat pe tot ecranul",
@@ -1779,7 +1779,7 @@
     "Danmaku este pentru uz personal/comunitar. Neoficial; neafiliat cu YouTube, Twitch sau Dwango.",
     "Salvează",
     "Salvat.",
-    "Alt+Shift+C comută · M mod · D danmaku · P fereastră"
+    "Alt+Shift+C comută · M mod · D danmaku"
   ],
   "bg": [
     "Чат на цял екран",
@@ -1860,7 +1860,7 @@
     "Данмаку е за лична/общностна употреба. Неофициално; без връзка с YouTube, Twitch или Dwango.",
     "Запази",
     "Запазено.",
-    "Alt+Shift+C превключване · M режим · D данмаку · P прозорец"
+    "Alt+Shift+C превключване · M режим · D данмаку"
   ],
   "hr": [
     "Chat preko cijelog zaslona",
@@ -1941,7 +1941,7 @@
     "Danmaku je za osobnu/zajedničku uporabu. Neslužbeno; nije povezano s YouTubeom, Twitchem ili Dwangoom.",
     "Spremi",
     "Spremljeno.",
-    "Alt+Shift+C uključi · M način · D danmaku · P prozor"
+    "Alt+Shift+C uključi · M način · D danmaku"
   ],
   "sr": [
     "Ћаскање преко целог екрана",
@@ -2022,7 +2022,7 @@
     "Данмаку је за личну/заједничку употребу. Незванично; није повезано са YouTube, Twitch или Dwango.",
     "Сачувај",
     "Сачувано.",
-    "Alt+Shift+C укључи · M режим · D данмаку · P прозор"
+    "Alt+Shift+C укључи · M режим · D данмаку"
   ],
   "sv": [
     "Chatt i helskärm",
@@ -2103,7 +2103,7 @@
     "Danmaku är för personligt/communitybruk. Inofficiellt; inte knutet till YouTube, Twitch eller Dwango.",
     "Spara",
     "Sparat.",
-    "Alt+Shift+C växla · M läge · D danmaku · P popout"
+    "Alt+Shift+C växla · M läge · D danmaku"
   ],
   "da": [
     "Chat i fuld skærm",
@@ -2184,7 +2184,7 @@
     "Danmaku er til personlig/fællesskabsbrug. Uofficiel; ikke tilknyttet YouTube, Twitch eller Dwango.",
     "Gem",
     "Gemt.",
-    "Alt+Shift+C skift · M tilstand · D danmaku · P popout"
+    "Alt+Shift+C skift · M tilstand · D danmaku"
   ],
   "nb": [
     "Chat i fullskjerm",
@@ -2265,7 +2265,7 @@
     "Danmaku er for personlig/fellesskapsbruk. Uoffisiell; ikke tilknyttet YouTube, Twitch eller Dwango.",
     "Lagre",
     "Lagret.",
-    "Alt+Shift+C bytt · M modus · D danmaku · P popout"
+    "Alt+Shift+C bytt · M modus · D danmaku"
   ],
   "fi": [
     "Koko näytön chat",
@@ -2346,7 +2346,7 @@
     "Danmaku on henkilökohtaiseen/yhteisökäyttöön. Epävirallinen; ei sidoksissa YouTubeen, Twitchiin tai Dwangoon.",
     "Tallenna",
     "Tallennettu.",
-    "Alt+Shift+C vaihda · M tila · D danmaku · P ikkuna"
+    "Alt+Shift+C vaihda · M tila · D danmaku"
   ],
   "el": [
     "Συνομιλία πλήρους οθόνης",
@@ -2427,7 +2427,7 @@
     "Το ντανμάκου είναι για προσωπική/κοινοτική χρήση. Μη επίσημο· χωρίς σχέση με YouTube, Twitch ή Dwango.",
     "Αποθήκευση",
     "Αποθηκεύτηκε.",
-    "Alt+Shift+C εναλλαγή · M λειτουργία · D ντανμάκου · P παράθυρο"
+    "Alt+Shift+C εναλλαγή · M λειτουργία · D ντανμάκου"
   ],
   "ca": [
     "Xat a pantalla completa",
@@ -2508,7 +2508,7 @@
     "El danmaku és per a ús personal/comunitari. No oficial; no afiliat a YouTube, Twitch ni Dwango.",
     "Desa",
     "Desat.",
-    "Alt+Shift+C commutació · M mode · D danmaku · P finestra"
+    "Alt+Shift+C commutació · M mode · D danmaku"
   ],
   "sw": [
     "Gumzo la skrini kamili",
@@ -2589,7 +2589,7 @@
     "Danmaku ni kwa matumizi ya kibinafsi/jamii. Si rasmi; haihusiani na YouTube, Twitch, au Dwango.",
     "Hifadhi",
     "Imehifadhiwa.",
-    "Alt+Shift+C geuza · M hali · D danmaku · P dirisha"
+    "Alt+Shift+C geuza · M hali · D danmaku"
   ],
   "lt": [
     "Viso ekrano pokalbis",
@@ -2670,7 +2670,7 @@
     "Danmaku skirta asmeniniam/bendruomenės naudojimui. Neoficialu; nesusiję su YouTube, Twitch ar Dwango.",
     "Išsaugoti",
     "Išsaugota.",
-    "Alt+Shift+C perjungti · M režimas · D danmaku · P langas"
+    "Alt+Shift+C perjungti · M režimas · D danmaku"
   ],
   "lv": [
     "Tērzēšana pilnekrānā",
@@ -2751,7 +2751,7 @@
     "Danmaku ir personīgai/kopienas lietošanai. Neoficiāli; nav saistīts ar YouTube, Twitch vai Dwango.",
     "Saglabāt",
     "Saglabāts.",
-    "Alt+Shift+C pārslēgt · M režīms · D danmaku · P logs"
+    "Alt+Shift+C pārslēgt · M režīms · D danmaku"
   ],
   "et": [
     "Täisekraani vestlus",
@@ -2832,7 +2832,7 @@
     "Danmaku on isiklikuks/kogukondlikuks kasutamiseks. Mitteametlik; ei ole seotud YouTube’i, Twitchi ega Dwangoga.",
     "Salvesta",
     "Salvestatud.",
-    "Alt+Shift+C lülita · M režiim · D danmaku · P aken"
+    "Alt+Shift+C lülita · M režiim · D danmaku"
   ],
   "sl": [
     "Klepet čez cel zaslon",
@@ -2913,6 +2913,6 @@
     "Danmaku je za osebno/skupnostno uporabo. Neuradno; ni povezano z YouTube, Twitch ali Dwango.",
     "Shrani",
     "Shranjeno.",
-    "Alt+Shift+C preklopi · M način · D danmaku · P okno"
+    "Alt+Shift+C preklopi · M način · D danmaku"
   ]
 }

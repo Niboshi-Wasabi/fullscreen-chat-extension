@@ -48,7 +48,7 @@ pnpmの公開レジストリへの照会を利用。正常なJSONと完全な件
 
 Actionlintは構文と既知入力を検査し、追加の[ポリシー検査](../../scripts/check-workflows.mjs)でイベント、権限、SHA、無条件の必須コマンド、明示的成果物の範囲を確認。ShellCheck/Pyflakesは使用せず、PowerShellコマンドは記録した3コマンドに限定する。これは任意の悪意ある変更に耐える独立した保護装置ではなく、ポリシー自身の変更はレビューが必要。
 
-診断summary・JUnitとE2EのJSON/JUnit・テスト別画像/trace・HTMLレポートは失敗時も可能な範囲で保存し、両ビルドは全チェック成功時のみ保存する。E2Eは合成データだけを扱い、プロファイルや認証済み実サイトの記録をアップロードしない。成果物保存期間は7日。ハーネス全ディレクトリや秘密情報のrawレポートはアップロードしない。提出・デプロイは自動化しない。
+診断summary・JUnitとE2EのJSON/JUnit・テスト別画像/trace・HTMLレポートは失敗時も可能な範囲で保存し、両ビルドは全チェック成功時のみ保存する。E2Eは合成データだけを扱い、プロファイルやログイン済みの実サイトの記録はアップロードしない。成果物保存期間は7日。ハーネス全ディレクトリや秘密情報のrawレポートはアップロードしない。提出・デプロイは自動化しない。
 
 ローカル証跡は `.harness-artifacts/`。verify:securityはsecurity-results.json、通常/CIはverify-results.json、各検査はaudit-summary.json・secrets-summary.json・workflow-summary.jsonを記録する。以前のレポートが残る場合があるため、必ず統合結果の各ステップ状態と時刻を合わせて確認する。
 

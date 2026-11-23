@@ -2,7 +2,7 @@
 
 ## 維持する方針
 
-- 開発者サーバへチャット・コメント本文を送らず、解析SDKを導入しない。アカウント登録を要求しない。
+- 開発者のサーバーへチャット・コメント本文を送らず、解析SDKを導入しない。アカウント登録を要求しない。
 - 設定は端末内保存を基本とし、ログ・fixture・レビュー証跡へ秘密情報や実ユーザーの本文を記録しない。
 - 最小権限を維持し、広範なall_urlsやリモートコード実行を追加しない。
 - 公開説明の正本は[privacy.html](../../public/privacy.html)、要求は[PRD](../prd.md)。通信先と権限の実体は[WXT設定](../../wxt.config.ts)を確認する。
@@ -16,12 +16,13 @@
 | youtube.com / twitch.tv | 動画ページ、公式チャット、投稿UI |
 | BTTV / FFZ / 7TV関連のAPI・CDN | 任意の第三者エモートカタログ・画像 |
 
-正確なサブドメインとパターンは設定を参照。manifestのhost_permissionsは実通信の網羅表ではないため、実装中のfetch・画像・iframe等も調べる。権限とPRDの不一致は[ISS-001](../quality/issues.md#iss-001)で判断し、送信データ・用途・必要性を公開前に整理する。
+正確なサブドメインとパターンは設定を参照。manifestのhost_permissionsは実通信の網羅表ではないため、実装中のfetch・画像・iframe等も調べる。権限とPRDの不一致は[ISS-001](../quality/issues.md#iss-001)で判断し、送信データ・用途・必要性を公開前に整理する。混合チャット統合（[ISS-034](../quality/issues.md#iss-034)）でも新規の外部通信先や host 権限は追加していない。
 
 ## 確認する信頼境界
 
 - ページ・iframe・postMessage: origin、source、frame、payload、件数/長さを確認。
 - runtime通信: sender、宛先タブ、サイト対応、URLのスキーム/ホスト/用途を副作用前に検証。
+- タブ間混合チャット中継（`bridge-hub` / `bridge-popout`）: 送信元の拡張 ID・HTTPS URL・トップフレーム・サイト種別（別窓は自拡張 `bridge-popout.html`）およびサニタイズ済みペイロードを検証し、`storage.session` へはタブ・配信・購読メタデータのみを保持してチャット本文や視聴者識別子を残さない。
 - 設定インポート: 型、値域、未知項目、サイズ、失敗時の保存値を確認。
 - DOM表示: 本文をHTMLとして信頼しない。絵文字URL等の外部値も確認。
 - ログ・画像・CI成果物: 認証情報と個人データを除去。

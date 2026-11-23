@@ -2,7 +2,7 @@ import { listLocaleOptions } from "../shared/i18n";
 
 /**
  * Fill a language `<select>` once — Auto stays i18n'd; other labels are native names.
- * 言語セレクトを一度だけ埋める。Auto は i18n、他は自称ラベル。
+ * 言語の選択肢を一度だけ登録する。「自動」は i18n の文言を使い、各言語はその言語での名称を表示する。
  */
 export function populateLocaleSelect(select: HTMLSelectElement): void {
   if (select.dataset.fceLocaleReady === "1") {

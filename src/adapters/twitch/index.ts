@@ -10,7 +10,9 @@ import {
 } from "../../core/message";
 import { extractMessageContent } from "../../shared/message-content";
 import {
+  extractTwitchChannel,
   extractTwitchChannelFromPage,
+  isTwitchHost,
   isTwitchVodPage,
 } from "../../shared/site-ids";
 import {
@@ -24,6 +26,13 @@ import {
   loadTwitchEmoteMap,
   type EmoteCodeMap,
 } from "../../shared/twitch-emotes";
+import { parseClockToSeconds } from "../../core/archive-sync";
+import {
+  isChatColumnCollapseLabel,
+  isChatColumnExpandLabel,
+  setTwitchChatReinitializing,
+  TWITCH_COLLAPSE_TOGGLE as CHAT_COLLAPSE_TOGGLE_SELECTOR,
+} from "../../shared/page-chat-column";
 import { getPageMediaTimeSec } from "../../shared/video-clock";
 import type { SiteAdapter } from "../types";
 
@@ -38,21 +47,29 @@ const VOD_CHAT_CONTAINER_SELECTOR =
   ".video-chat__message-list-wrapper, .video-chat__message-list, .video-chat ul";
 const VOD_CHAT_MESSAGE_SELECTOR = ".vod-message, .video-chat__message";
 const VOD_MESSAGE_ROW_SELECTOR = `${VOD_CHAT_MESSAGE_SELECTOR}, [data-a-target="chat-line-message"]`;
-const CHAT_COLLAPSE_TOGGLE_SELECTOR =
-  '[data-a-target="right-column__toggle-collapse-btn"]';
 const CHAT_INPUT_SELECTOR =
   'textarea[data-a-target="chat-input"], [data-a-target="chat-input"]';
 const CHAT_SEND_SELECTOR = 'button[data-a-target="chat-send-button"]';
 
 /** Brief reopen keeps Twitch chat DOM updating while appearing collapsed.
- * 短く開閉して、見た目は閉じたまま受信 DOM を復活させる。 */
+ * 短く開閉して、閉じた表示に戻しつつ、受信に使う DOM を復元する。 */
 const CHAT_REOPEN_CLOSE_DELAY_MS = 80;
+
+export interface TwitchAdapterOptions {
+  /** Only briefly toggle Twitch's collapsed column when a self-rendered surface needs DOM chat.
+   * 自前リスト／弾幕などページ側 DOM 受信が必要なときだけ折りたたんだチャット欄を一時的に開き直す。 */
+  shouldRecoverCollapsedChat?: () => boolean;
+}
 
 /**
  * Twitch live / VOD chat adapter.
  * Twitch ライブ／VOD チャットアダプタ。
  */
-export function createTwitchAdapter(): SiteAdapter {
+export function createTwitchAdapter(
+  options: TwitchAdapterOptions = {},
+): SiteAdapter {
+  const shouldRecoverCollapsedChat =
+    options.shouldRecoverCollapsedChat ?? (() => true);
   let seen = new WeakMap<Element, string>();
   let stopped = false;
   let onMessage: ((message: NormalizedMessage) => void) | null = null;
@@ -60,7 +77,9 @@ export function createTwitchAdapter(): SiteAdapter {
   let bodyObserver: MutationObserver | null = null;
   let observedContainer: Element | null = null;
   let ensureTimer: number | null = null;
+  let reinitTimer: number | null = null;
   let isReinitializingChat = false;
+  let reinitAttemptedWhileCollapsed = false;
   let lastPathname = location.pathname;
   let emoteMap: EmoteCodeMap = new Map();
   let emotesEnabled = false;
@@ -75,6 +94,7 @@ export function createTwitchAdapter(): SiteAdapter {
       seen = new WeakMap<Element, string>();
       onMessage = callback;
       lastPathname = location.pathname;
+      reinitAttemptedWhileCollapsed = false;
       void refreshEmoteMap();
       unwatch = watchSettings((next, previous) => {
         if (next.twitch.thirdPartyEmotes !== previous?.twitch.thirdPartyEmotes)
@@ -120,6 +140,13 @@ export function createTwitchAdapter(): SiteAdapter {
         window.clearInterval(ensureTimer);
         ensureTimer = null;
       }
+      if (reinitTimer !== null) {
+        window.clearTimeout(reinitTimer);
+        reinitTimer = null;
+      }
+      isReinitializingChat = false;
+      reinitAttemptedWhileCollapsed = false;
+      setTwitchChatReinitializing(false);
     },
     async sendMessage(text) {
       return stopped ? false : trySendViaNativeInput(text);
@@ -130,7 +157,14 @@ export function createTwitchAdapter(): SiteAdapter {
     const generation = ++emoteGeneration;
     emoteAbort?.abort();
     emoteMap = new Map();
-    const settings = next ?? (await loadSettings());
+    let settings = next;
+    if (!settings) {
+      try {
+        settings = await loadSettings();
+      } catch {
+        return;
+      }
+    }
     if (stopped || generation !== emoteGeneration) return;
     emotesEnabled = settings.twitch.thirdPartyEmotes;
     if (!emotesEnabled) return;
@@ -163,9 +197,9 @@ export function createTwitchAdapter(): SiteAdapter {
           mutation.target instanceof Element
             ? mutation.target
             : mutation.target.parentElement;
-        const row = target?.closest(
-          `${CHAT_MESSAGE_SELECTOR}, ${VOD_MESSAGE_ROW_SELECTOR}`,
-        );
+        const row =
+          target?.closest(`${CHAT_MESSAGE_SELECTOR}, .vod-message`) ??
+          target?.closest(".video-chat__message");
         if (row) ingestMessageElement(row);
         mutation.addedNodes.forEach((node) => handleAddedNode(node));
       }
@@ -210,11 +244,11 @@ export function createTwitchAdapter(): SiteAdapter {
   }
 
   function ingestMessageElement(element: Element): void {
-    // Some renderers put both selectors on different levels of one message.
+    // In Twitch VOD DOM, .video-chat__message sits inside .vod-message — prefer the outer row.
     element =
-      element.closest(
-        '[data-a-target="chat-line-message"], .vod-message, .video-chat__message',
-      ) ?? element;
+      element.closest('[data-a-target="chat-line-message"], .vod-message') ??
+      element.closest(".video-chat__message") ??
+      element;
     const parsed = parseTwitchMessage(element, emotesEnabled ? emoteMap : null);
     if (parsed) {
       const fingerprint = JSON.stringify([
@@ -234,24 +268,31 @@ export function createTwitchAdapter(): SiteAdapter {
     }
     lastPathname = location.pathname;
     observedContainer = null;
+    reinitAttemptedWhileCollapsed = false;
     chatObserver?.disconnect();
     chatObserver = null;
     void refreshEmoteMap();
     ensureChatObserved();
-    if (isNativeChatCollapsed()) {
+    if (isNativeChatCollapsed() && shouldRecoverCollapsedChat()) {
       reinitializeCollapsedChat();
     }
   }
 
   function maybeRecoverCollapsedChat(): void {
     if (isTwitchVodPage() || !isNativeChatCollapsed()) {
+      reinitAttemptedWhileCollapsed = false;
+      return;
+    }
+    if (document.querySelector(CHAT_CONTAINER_SELECTOR)) {
+      reinitAttemptedWhileCollapsed = false;
+      return;
+    }
+    if (reinitAttemptedWhileCollapsed || !shouldRecoverCollapsedChat()) {
       return;
     }
     // If container is missing while collapsed, Twitch stopped updating chat.
-    // コラプス中にコンテナが消えている＝受信停止なので再初期化。
-    if (!document.querySelector(CHAT_CONTAINER_SELECTOR)) {
-      reinitializeCollapsedChat();
-    }
+    // 折りたたみ中にコンテナがなくなると受信も止まるため、監視を初期化し直す。
+    reinitializeCollapsedChat();
   }
 
   function reinitializeCollapsedChat(): void {
@@ -263,18 +304,37 @@ export function createTwitchAdapter(): SiteAdapter {
       return;
     }
     isReinitializingChat = true;
-    toggle.click();
-    window.setTimeout(() => {
-      if (stopped) {
-        isReinitializingChat = false;
-        return;
-      }
-      const closeToggle = document.querySelector(CHAT_COLLAPSE_TOGGLE_SELECTOR);
-      if (closeToggle instanceof HTMLElement && isExpandedToggle(closeToggle)) {
-        closeToggle.click();
-      }
+    reinitAttemptedWhileCollapsed = true;
+    setTwitchChatReinitializing(true);
+    try {
+      toggle.click();
+    } catch (error) {
       isReinitializingChat = false;
-      ensureChatObserved();
+      setTwitchChatReinitializing(false);
+      throw error;
+    }
+    reinitTimer = window.setTimeout(() => {
+      reinitTimer = null;
+      try {
+        if (stopped) {
+          return;
+        }
+        const closeToggle = document.querySelector(
+          CHAT_COLLAPSE_TOGGLE_SELECTOR,
+        );
+        if (
+          closeToggle instanceof HTMLElement &&
+          isExpandedToggle(closeToggle)
+        ) {
+          closeToggle.click();
+        }
+      } finally {
+        isReinitializingChat = false;
+        setTwitchChatReinitializing(false);
+      }
+      if (!stopped) {
+        ensureChatObserved();
+      }
     }, CHAT_REOPEN_CLOSE_DELAY_MS);
   }
 }
@@ -284,24 +344,12 @@ function isNativeChatCollapsed(): boolean {
   if (!(toggle instanceof HTMLElement)) {
     return false;
   }
-  const label = (toggle.getAttribute("aria-label") ?? "").toLowerCase();
   // Expand / 展開 means currently collapsed / 「展開」＝いま閉じている
-  return (
-    label.includes("expand") ||
-    label.includes("展開") ||
-    label.includes("show") ||
-    label.includes("表示")
-  );
+  return isChatColumnExpandLabel(toggle.getAttribute("aria-label") ?? "");
 }
 
 function isExpandedToggle(toggle: HTMLElement): boolean {
-  const label = (toggle.getAttribute("aria-label") ?? "").toLowerCase();
-  return (
-    label.includes("collapse") ||
-    label.includes("折りたた") ||
-    label.includes("hide") ||
-    label.includes("非表示")
-  );
+  return isChatColumnCollapseLabel(toggle.getAttribute("aria-label") ?? "");
 }
 
 const elementIds = new WeakMap<Element, string>();
@@ -310,18 +358,21 @@ export function parseTwitchMessage(
   element: Element,
   emoteMap: EmoteCodeMap | null,
 ): NormalizedMessage | null {
-  const authorName =
-    element.querySelector(CHAT_AUTHOR_SELECTOR)?.textContent?.trim() ??
-    element
-      .querySelector(".vod-message__header .chat-author__display-name")
-      ?.textContent?.trim() ??
-    element.querySelector(".chat-author__display-name")?.textContent?.trim() ??
-    element
-      .querySelector(
-        '.vod-message__header [data-a-target="chat-message-username"]',
-      )
-      ?.textContent?.trim() ??
-    "unknown";
+  const authorEl =
+    element.querySelector(CHAT_AUTHOR_SELECTOR) ??
+    element.querySelector(".vod-message__header .chat-author__display-name") ??
+    element.querySelector(".chat-author__display-name") ??
+    element.querySelector(
+      '.vod-message__header [data-a-target="chat-message-username"]',
+    );
+  const authorName = authorEl?.textContent?.trim() || "unknown";
+  const rawIntlLogin = element
+    .querySelector(".chat-author__intl-login")
+    ?.textContent?.trim();
+  const authorLogin = rawIntlLogin
+    ? rawIntlLogin.replace(/^\((.*)\)$/, "$1").trim() || undefined
+    : undefined;
+  const authorColor = readSafeTwitchAuthorColor(authorEl);
 
   const bodyEl =
     element.querySelector(CHAT_BODY_SELECTOR) ??
@@ -330,6 +381,21 @@ export function parseTwitchMessage(
   const fromBody = extractMessageContent(bodyEl);
   let text = fromBody.text;
   let segments = fromBody.segments;
+
+  if (
+    bodyEl?.classList?.contains("video-chat__message") &&
+    bodyEl.firstElementChild?.textContent?.trim() === ":"
+  ) {
+    if (segments[0]?.type === "text" && segments[0].text.startsWith(":")) {
+      const stripped = segments[0].text.slice(1).replace(/^\s+/, "");
+      if (stripped) {
+        segments[0] = { type: "text", text: stripped };
+      } else {
+        segments.shift();
+      }
+    }
+    text = text.replace(/^:\s*/, "");
+  }
 
   if (!text && segments.length === 0) {
     const fragments = Array.from(
@@ -400,6 +466,8 @@ export function parseTwitchMessage(
     id,
     site: "twitch",
     authorName,
+    authorLogin,
+    authorColor,
     text: displayText,
     segments: segments.length > 0 ? segments : undefined,
     isSelf,
@@ -419,27 +487,34 @@ export function readTwitchVodOffsetSec(element: Element): number | undefined {
     return undefined;
   }
   const stampNode = element.querySelector(
-    '[data-a-target="chat-timestamp"], .vod-message__timestamp, .chat-line__timestamp, a[href*="t="]',
+    '[data-a-target="chat-timestamp"], .vod-message__timestamp, .chat-line__timestamp, .vod-message__header a[href*="t="]',
   );
   // Prefer any href (anchor or mock) over instanceof — works across realms/tests.
-  // アンカー判定は href 優先（realm／テストでも動く）。
-  const fromHref = parseTwitchTimeParam(
-    stampNode?.getAttribute("href") ??
-      element.querySelector("a[href*='t=']")?.getAttribute("href"),
-  );
+  // Never scan links inside chat message bodies or pasted links will fake timestamps.
+  const fromHref = parseTwitchTimeParam(stampNode?.getAttribute("href"));
   if (fromHref !== undefined) {
     return fromHref;
   }
-  const stamp =
-    stampNode?.textContent?.trim() ||
-    element.getAttribute?.("data-a-target-timestamp") ||
-    "";
-  const fromClock = parseClockToSeconds(stamp);
-  if (fromClock !== undefined) {
-    return fromClock;
+  const stampCandidates = [
+    stampNode?.textContent?.trim(),
+    ...Array.from(
+      element.querySelectorAll?.(
+        ".vod-message__header button, .vod-message__header p",
+      ) ?? [],
+    ).map((node) => node.textContent?.trim()),
+    element.getAttribute?.("data-a-target-timestamp"),
+  ];
+  for (const stamp of stampCandidates) {
+    if (!stamp) {
+      continue;
+    }
+    const fromClock = parseClockToSeconds(stamp);
+    if (fromClock !== undefined) {
+      return fromClock;
+    }
   }
   // Newly dripped rows without a stamp belong at the current media time.
-  // 時刻無しで流れ込む行は、いまの再生位置向けとして扱う。
+  // 時刻のないコメントは、現在の再生位置のコメントとして扱う。
   const media = getPageMediaTimeSec();
   return media === null ? undefined : Math.max(0, media);
 }
@@ -467,33 +542,17 @@ export function parseTwitchTimeParam(
       );
     }
     const seconds = Number(raw.replace(/s$/i, ""));
-    return Number.isFinite(seconds) ? seconds : undefined;
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : undefined;
   } catch {
     return undefined;
   }
-}
-
-export function parseClockToSeconds(value: string): number | undefined {
-  const match = value.trim().match(/^(\d+):(\d{2})(?::(\d{2}))?$/);
-  if (!match) {
-    return undefined;
-  }
-  if (match[3] !== undefined) {
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    const seconds = Number(match[3]);
-    return hours * 3600 + minutes * 60 + seconds;
-  }
-  const minutes = Number(match[1]);
-  const seconds = Number(match[2]);
-  return minutes * 60 + seconds;
 }
 
 function resolveTwitchSelfAuthorName(): string | null {
   return (
     document
       .querySelector(
-        '[data-a-target="user-display-name"], h5[data-a-target="user-display-name"], [data-a-target="user-card-username"]',
+        '[data-a-target="user-menu-dropdown__display-name"], [data-a-target="top-nav-container"] [data-a-target="user-display-name"]',
       )
       ?.textContent?.trim() || null
   );
@@ -524,21 +583,78 @@ function trySendViaNativeInput(text: string): boolean {
   return true;
 }
 
+function readSafeTwitchAuthorColor(
+  element: Element | null,
+): string | undefined {
+  if (!element) {
+    return undefined;
+  }
+  const inline =
+    element instanceof HTMLElement ? element.style?.color?.trim() : "";
+  const raw = inline || extractInlineStyleColor(element.getAttribute("style"));
+  if (!raw) {
+    return undefined;
+  }
+  const rgb = parseRgbColor(raw);
+  if (!rgb) {
+    return undefined;
+  }
+  const [r, g, b] = rgb;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  if (luminance < 0.25) {
+    // Lift very dark colors (e.g. rgb(0, 0, 255)) for legibility on dark #18181b panels.
+    const mix = 0.35;
+    return `rgb(${Math.round(r + (255 - r) * mix)}, ${Math.round(g + (255 - g) * mix)}, ${Math.round(b + (255 - b) * mix)})`;
+  }
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function extractInlineStyleColor(styleAttr: string | null): string {
+  if (!styleAttr) {
+    return "";
+  }
+  const match = styleAttr.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+  return match?.[1]?.trim() ?? "";
+}
+
+function parseRgbColor(value: string): [number, number, number] | null {
+  const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const digits = hex[1]!;
+    if (digits.length === 3) {
+      return [
+        parseInt(digits[0]! + digits[0]!, 16),
+        parseInt(digits[1]! + digits[1]!, 16),
+        parseInt(digits[2]! + digits[2]!, 16),
+      ];
+    }
+    return [
+      parseInt(digits.slice(0, 2), 16),
+      parseInt(digits.slice(2, 4), 16),
+      parseInt(digits.slice(4, 6), 16),
+    ];
+  }
+  const rgb = value.match(
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+\s*)?\)$/i,
+  );
+  if (!rgb) {
+    return null;
+  }
+  const channels: [number, number, number] = [
+    Number(rgb[1]),
+    Number(rgb[2]),
+    Number(rgb[3]),
+  ];
+  return channels.every((c) => Number.isInteger(c) && c >= 0 && c <= 255)
+    ? channels
+    : null;
+}
+
 export function isTwitchChannelPage(): boolean {
-  if (!/(^|\.)twitch\.tv$/i.test(location.hostname)) {
+  if (!isTwitchHost(location.hostname)) {
     return false;
   }
   if (window.top !== window) {
-    return false;
-  }
-  const path = location.pathname;
-  if (
-    path.startsWith("/directory") ||
-    path.startsWith("/settings") ||
-    path.startsWith("/inventory") ||
-    path.startsWith("/subscriptions") ||
-    path === "/"
-  ) {
     return false;
   }
   if (isTwitchVodPage()) {
@@ -548,5 +664,5 @@ export function isTwitchChannelPage(): boolean {
       document.querySelector(VOD_CHAT_CONTAINER_SELECTOR),
     );
   }
-  return Boolean(document.querySelector("video") || path.length > 1);
+  return Boolean(extractTwitchChannel(location.href));
 }

@@ -68,7 +68,7 @@ export function isRtlLocale(locale: AppLocale): boolean {
   return RTL_LOCALE_SET.has(locale);
 }
 
-/** Map browser language tags to our catalog / ブラウザ言語タグをカタログへ */
+/** Map browser language tags to our catalog / ブラウザの言語タグを対応するカタログに割り当てる */
 const BROWSER_ALIASES: Record<string, AppLocale> = {
   en: "en",
   "en-us": "en",

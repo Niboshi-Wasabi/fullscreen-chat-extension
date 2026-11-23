@@ -5,7 +5,7 @@
 
 ## 方針
 
-Chromium と Firefox の両方をビルド対象とする。差異は **黙って壊さない**。
+Chromium と Firefox の両方をビルド対象とする。ブラウザ間で挙動に差がある場合は、利用できる機能と代替動作を示す。
 
 - **content script** は `browser.windows` に触れない（未定義アクセスで落ちる）。
 - 別窓の作成・bounds 保存は **background** のみが `windows` を使う。
@@ -18,7 +18,8 @@ Chromium と Firefox の両方をビルド対象とする。差異は **黙っ�
 | Manifest | MV3 service worker | MV3 background scripts（WXT 出力） | ビルドで吸収 |
 | `permissions: windows` | 別窓作成に使用 | 必要。未付与だと Popout 不可 | マニフェストで明示。欠けるビルドは不具合 |
 | `windows.onBoundsChanged` | あり | 無い場合あり | background で optional。無ければ閉じるときに bounds 保存 |
-| `storage.session` | 別窓 ID 復元 | 基本あり（121+） | 無ければメモリのみ（`getFeatureFlags().sessionStorage`） |
+| `windows.create({ focused: false })` | 非フォーカス作成可 | 警告なしでも前面化される場合あり | 許容動作とし、エラー時のみ `focused` を外して再試行 |
+| `storage.session` | 別窓 ID・混合チャット接続状態の復元 | 基本あり（121+） | 無ければメモリのみ（`getFeatureFlags().sessionStorage`） |
 | `commands` suggested_key | 最大 4 | 5 本目にデフォルトを付けられる場合あり | Chrome 制約に合わせて 4+未割当 |
 | データ収集プロンプト | なし | `data_collection_permissions.required: ["none"]` | 解析送信なし。AMO 提出用に manifest へ宣言済み |
 
@@ -32,7 +33,7 @@ documentPip       — Document PiP（常時前面）が使えるか
 
 `windows.onBoundsChanged` はフラグ化しない。background が直接 optional bind する。
 
-別窓オープン失敗時はログのみ（`popout open failed`）。表示モード自体のパネル強制フォールバックは、サイトが popout 非対応（例: 通常 YT コメント）のとき `routeDisplay` が担当する。
+別窓オープン失敗時はログのみ（`popout open failed`）。表示モード自体の切り替え・フォールバックは `routeDisplay` が担当する。
 
 ## 検証チェックリスト
 
@@ -43,5 +44,5 @@ documentPip       — Document PiP（常時前面）が使えるか
 - [ ] `about:debugging` で一時読み込み
 - [ ] YT ライブでパネル表示
 - [ ] 別窓（`windows` 権限あり）で公式チャットが開く
-- [ ] 弾幕モード（通常コメントでは無効のまま）
+- [ ] 弾幕モード（YT ライブ／Twitch）
 - [ ] content のコンソールに `onBoundsChanged` / windows 関連 TypeError が出ない

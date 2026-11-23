@@ -20,7 +20,7 @@
 |---|---|---|---|---:|---|---|
 | YouTube ライブ | `watch?v=DxgDeW-gIcU` | あり | あり | 0 | ⚠️ | 公式側「チャットをご利用いただけません／ブラウザが古い」。自動化 Chrome では受信不可。オーバーレイ起動のみ |
 | YouTube 通常コメント | `watch?v=jNQXAC9IVRw` | あり | あり | 21 | ✅ | YC-1 相当（自動化）。**実行3 手動では YC ❌ に上書き** |
-| YouTube シーク | `watch?v=aqz-KE-bpKQ` | あり | あり | 21 | ⚠️ | seek 約 3→35s 成功。チャットリプレイ無し（通常コメント）。YA 同期は未検証 |
+| YouTube シーク | `watch?v=aqz-KE-bpKQ` | あり | あり | 21 | ⚠️ | seek 約 3→35s 成功。チャットリプレイなし（通常コメント）。YA 同期は未検証 |
 | Twitch ライブ | `twitch.tv/fps_shaka` | あり | あり | 7 | ✅ | TL-1/TL-2 相当（読取）。公式チャット面あり |
 | Twitch VOD | `twitch.tv/videos/2929424809` | あり | あり | 100 | ✅ | TV-1 相当。seek 約 11→59s。公式 VOD 行 56。同期ズレ秒は未計測 |
 
@@ -34,7 +34,7 @@
 |---|---|---|
 | YT ライブ受信（通常 Chrome/Firefox） | ✅ | 自動化の行0ブロッカーを人手で解消 |
 | Twitch ライブ受信・チャット閉 | ✅ | TL-3 含む |
-| 全画面／シアター再配置 | ⚠️ | 配置は可。再読込／弾幕一掃 → ISS-023 |
+| 全画面／シアター再配置 | ⚠️ | 配置は可。再読み込み／弾幕一掃 → ISS-023 |
 | 別窓 | ✅ | Firefox `about:blank` メモ付き |
 | IME・Firefox 主経路・SPA | ✅ | SPA 例: `a3dAtphBqZ0` ↔ `DO3jot8NuC0` |
 | Twitch VOD シーク | ⚠️ | 追従可。バッジ／スタンプ表示 → ISS-024 |

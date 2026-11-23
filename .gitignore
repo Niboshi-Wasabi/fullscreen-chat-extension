@@ -7,5 +7,9 @@ dist/
 *.zip
 .harness-artifacts/
 .harness-tools/
+# Per-machine MCP launch config (absolute profile paths); see browser-verification.md.
+.cursor/mcp.json
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc

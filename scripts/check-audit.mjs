@@ -27,7 +27,7 @@ function pnpmCommand() {
   return [process.execPath, file];
 }
 
-/** Require a complete advisory response and successful process / 照会失敗や壊れた応答は合格にしない。 */
+/** Require a complete advisory response and successful process / 照会失敗や応答を解析できない場合は失敗とする。 */
 export function assessAudit(result) {
   if (result.error || result.signal || result.status === null)
     throw new Error("Audit process failed or timed out");

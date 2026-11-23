@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import {
+  DEFAULT_SETTINGS,
   loadSettings,
   registerSettingsPersistence,
   saveSettings,
@@ -10,6 +11,7 @@ import {
   buildSettingsBackup,
   importSettingsBackup,
   parseSettingsBackup,
+  resetSettingsToDefault,
 } from "../../src/shared/settings-backup";
 import { settings } from "../helpers";
 
@@ -112,12 +114,31 @@ describe("settings write boundaries", () => {
       settings: {
         enabled: false,
         filter: { ngWords: null, blockedUsers: "bad" },
+        youtubeComments: { enabled: true, sort: "newest", autoLoadMore: false },
       },
     });
-    expect(await loadSettings()).toMatchObject({
+    const loaded = await loadSettings();
+    expect(loaded).toMatchObject({
       enabled: false,
       filter: { ngWords: [], blockedUsers: [] },
     });
+    expect("youtubeComments" in loaded).toBe(false);
+  });
+  it("imports a pre-ISS-027 backup by dropping the retired youtubeComments key", async () => {
+    const legacy = {
+      version: 1,
+      exportedAt: "2026-11-15T00:00:00.000Z",
+      settings: {
+        enabled: false,
+        youtubeComments: { enabled: true, sort: "newest", autoLoadMore: false },
+      },
+    };
+    const parsed = parseSettingsBackup(legacy);
+    expect(parsed).toMatchObject({ enabled: false });
+    expect(parsed && "youtubeComments" in parsed).toBe(false);
+    expect(
+      parseSettingsBackup({ version: 1, settings: { unknownKey: true } }),
+    ).toBeNull();
   });
   it("accepts legacy bare settings and preserves partial bag siblings", async () => {
     expect(parseSettingsBackup({ enabled: false })).toMatchObject({
@@ -128,5 +149,53 @@ describe("settings write boundaries", () => {
     expect(await loadSettings()).toMatchObject({
       panel: { opacity: 0.4, fontSizePx: 18 },
     });
+  });
+
+  it("rejects fce:settings-write from untrusted senders and migrates danmaku defaults once", async () => {
+    type RuntimeHandler = (
+      message: unknown,
+      sender: { id?: string },
+      respond: (reply: unknown) => void,
+    ) => unknown;
+    let messageHandler: RuntimeHandler | undefined;
+    vi.spyOn(fakeBrowser.runtime.onMessage, "addListener").mockImplementation(
+      (cb) => {
+        messageHandler = cb as unknown as RuntimeHandler;
+      },
+    );
+    const stop = registerSettingsPersistence();
+    try {
+      await fakeBrowser.storage.local.set({
+        settings: {
+          enabled: true,
+          danmaku: { fontSizePx: 18, maxLines: 10, opacity: 0.5 },
+        },
+      });
+      const migrated = await loadSettings();
+      expect(migrated.danmaku.fontSizePx).toBe(
+        DEFAULT_SETTINGS.danmaku.fontSizePx,
+      );
+
+      let reply: unknown;
+      expect(messageHandler).toBeDefined();
+      messageHandler!(
+        {
+          type: "fce:settings-write",
+          operation: "patch",
+          settings: { enabled: false },
+        },
+        { id: "evil-ext" },
+        (res: unknown) => {
+          reply = res;
+        },
+      );
+      expect(reply).toEqual({ ok: false });
+      expect((await loadSettings()).enabled).toBe(true);
+
+      const reset = await resetSettingsToDefault();
+      expect(reset).toEqual(DEFAULT_SETTINGS);
+    } finally {
+      stop();
+    }
   });
 });

@@ -7,4 +7,4 @@ alwaysApply: false
 # Settings UI design
 
 ポップアップ・オプション・関連静的ページの変更前に、[共通デザイン原則](../../docs/design/settings-ui.md)と[設定一覧](../../docs/settings-inventory.md)を読む。
-UI原則の正本はdocs側に置き、このルールへ複製しない。オーバーレイや弾幕への適用範囲は正本を参照。
+オーバーレイや弾幕への適用範囲も、同じ共通デザイン原則を参照する。

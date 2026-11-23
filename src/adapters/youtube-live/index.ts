@@ -5,23 +5,38 @@ import {
 import {
   isChatFrameSource,
   isYouTubeChatMessage,
+  sanitizeYouTubeChatMessage,
 } from "../../shared/youtube-chat-bridge";
 import { looksLikeCommand, type NormalizedMessage } from "../../core/message";
-import { NATIVE_CHAT_FRAME_ID } from "../../shared/dom-ids";
+import {
+  HIDDEN_LIVE_CHAT_FRAME_ID,
+  NATIVE_CHAT_FRAME_ID,
+} from "../../shared/dom-ids";
 import { extractMessageContent } from "../../shared/message-content";
-import { extractYouTubeVideoId } from "../../shared/site-ids";
+import {
+  resolveYouTubePageChatFrameSrc,
+  resolveYouTubePageVideoId,
+} from "../../shared/site-ids";
+import { parseClockToSeconds } from "../../core/archive-sync";
+import {
+  isHostVideoAdPlaying,
+  resolvePrimaryVideo,
+} from "../../shared/video-clock";
+import {
+  isYouTubeChatReplay,
+  isYouTubeHost,
+  readYouTubeAuthorRole,
+  readYouTubeIframeUrl,
+} from "../../shared/youtube-page";
 import type { SiteAdapter } from "../types";
 import { TOP_FRAME_MESSAGE_TYPE } from "../types";
-
-const HIDDEN_CHAT_IFRAME_ID = "fce-hidden-live-chat-frame";
-
 /**
  * YouTube Live / premiere / chat-replay adapter.
  * YouTube ライブ・プレミア・チャットリプレイ用アダプタ。
  *
  * Hidden iframe keeps receiving when native chat is closed
  * (left:-9999px — avoid display:none which stops rendering).
- * ネイティブチャット閉時も隠し iframe で受信継続
+ * 公式チャットを閉じても、画面外の iframe で受信を続ける
  * （left:-9999px。display:none は描画停止の原因になるので使わない）。
  */
 export function createYouTubeLiveAdapter(): SiteAdapter {
@@ -30,6 +45,7 @@ export function createYouTubeLiveAdapter(): SiteAdapter {
   let observer: MutationObserver | null = null;
   let onMessage: ((message: NormalizedMessage) => void) | null = null;
   let ensureTimer: number | null = null;
+  let stopReplaySync: (() => void) | null = null;
 
   const handleWindowMessage = (event: MessageEvent) => {
     const data = event.data as { type?: string; message?: NormalizedMessage };
@@ -43,7 +59,7 @@ export function createYouTubeLiveAdapter(): SiteAdapter {
     if (data.message.site !== "youtube-live") {
       return;
     }
-    onMessage?.(data.message);
+    onMessage?.(sanitizeYouTubeChatMessage(data.message));
   };
 
   return {
@@ -55,8 +71,9 @@ export function createYouTubeLiveAdapter(): SiteAdapter {
       window.addEventListener("message", handleWindowMessage);
       ensureHiddenChatReceiver();
       observeTopFrameChat();
+      stopReplaySync = bindYouTubeReplaySync();
       // Short interval so leaving panel/native mode quickly restores the hidden receiver.
-      // パネル公式枠を外した直後でも、隠し受信をすぐ立て直す。
+      // パネルの公式チャットを外した直後に、受信用 iframe を作り直す。
       ensureTimer = window.setInterval(() => {
         if (!stopped) {
           ensureHiddenChatReceiver();
@@ -67,13 +84,15 @@ export function createYouTubeLiveAdapter(): SiteAdapter {
       stopped = true;
       onMessage = null;
       window.removeEventListener("message", handleWindowMessage);
+      stopReplaySync?.();
+      stopReplaySync = null;
       observer?.disconnect();
       observer = null;
       if (ensureTimer !== null) {
         window.clearInterval(ensureTimer);
         ensureTimer = null;
       }
-      document.getElementById(HIDDEN_CHAT_IFRAME_ID)?.remove();
+      document.getElementById(HIDDEN_LIVE_CHAT_FRAME_ID)?.remove();
     },
     async sendMessage(text: string) {
       return stopped ? false : trySendViaNativeInput(text);
@@ -85,8 +104,13 @@ export function createYouTubeLiveAdapter(): SiteAdapter {
     if (!root) {
       return;
     }
-    observer = new MutationObserver(() => {
-      scrapeVisibleChatNodes(document);
+    observer = new MutationObserver((mutations) => {
+      const hasAddedElements = mutations.some((mutation) =>
+        Array.from(mutation.addedNodes).some((node) => node instanceof Element),
+      );
+      if (hasAddedElements) {
+        scrapeVisibleChatNodes(document);
+      }
     });
     observer.observe(root, { childList: true, subtree: true });
     scrapeVisibleChatNodes(document);
@@ -161,11 +185,7 @@ function parseChatRenderer(element: Element): NormalizedMessage | null {
     return null;
   }
 
-  const authorType =
-    element.getAttribute("author-type") ??
-    element.querySelector("#author-name")?.getAttribute("type") ??
-    "";
-  const role = mapAuthorType(authorType);
+  const role = readYouTubeAuthorRole(element);
   const selfName = resolveYouTubeSelfAuthorName(element.ownerDocument);
   const isSelf =
     selfName !== null &&
@@ -194,22 +214,28 @@ function parseChatRenderer(element: Element): NormalizedMessage | null {
   };
 }
 
-/** Chat replay stamps lines with video-offset-time-msec.
- * チャットリプレイは video-offset-time-msec で秒位置を持つ。 */
+/** Chat replay stamps lines with video-offset-time-msec or `#timestamp` clocks.
+ * チャットリプレイは video-offset-time-msec または `#timestamp` で秒位置を持つ。 */
 function readYouTubeVideoOffsetSec(element: Element): number | undefined {
   const raw =
     element.getAttribute("video-offset-time-msec") ||
     element
       .querySelector("[video-offset-time-msec]")
       ?.getAttribute("video-offset-time-msec");
-  if (!raw) {
-    return undefined;
+  if (raw) {
+    const msec = Number(raw);
+    if (Number.isFinite(msec) && msec >= 0) {
+      return msec / 1000;
+    }
   }
-  const msec = Number(raw);
-  if (!Number.isFinite(msec) || msec < 0) {
-    return undefined;
+  const path = element.ownerDocument?.location?.pathname ?? "";
+  if (path.startsWith("/live_chat_replay") || isYouTubeChatReplay()) {
+    const stamp = element.querySelector("#timestamp")?.textContent?.trim();
+    if (stamp) {
+      return parseClockToSeconds(stamp, { allowNegative: true });
+    }
   }
-  return msec / 1000;
+  return undefined;
 }
 
 function resolveYouTubeSelfAuthorName(doc: Document | null): string | null {
@@ -236,23 +262,9 @@ function hashString(value: string): string {
   return `${Math.abs(hash)}`;
 }
 
-function mapAuthorType(authorType: string): NormalizedMessage["role"] {
-  const value = authorType.toLowerCase();
-  if (value.includes("owner")) {
-    return "owner";
-  }
-  if (value.includes("moderator")) {
-    return "moderator";
-  }
-  if (value.includes("member")) {
-    return "member";
-  }
-  return "viewer";
-}
-
 function ensureHiddenChatReceiver(): void {
   // Panel-hosted official iframe already receives chat — skip duplicate.
-  // パネル内の公式 iframe が受信していれば隠し枠は作らない。
+  // パネル内の公式 iframe が受信していれば、受信用の iframe は追加しない。
   const panelNative = document.getElementById(
     NATIVE_CHAT_FRAME_ID,
   ) as HTMLIFrameElement | null;
@@ -262,23 +274,31 @@ function ensureHiddenChatReceiver(): void {
     panelNative.src &&
     !panelNative.src.startsWith("about:blank")
   ) {
-    document.getElementById(HIDDEN_CHAT_IFRAME_ID)?.remove();
+    document.getElementById(HIDDEN_LIVE_CHAT_FRAME_ID)?.remove();
     return;
   }
 
-  if (document.getElementById(HIDDEN_CHAT_IFRAME_ID)) {
-    return;
-  }
-  const siteFrame =
-    document.querySelector<HTMLIFrameElement>("iframe#chatframe") ??
-    document.querySelector<HTMLIFrameElement>("ytd-live-chat-frame iframe");
-  const src = siteFrame?.src || buildLiveChatUrlFromPage() || "";
+  const pageSrc = resolveYouTubePageChatFrameSrc();
+  const fallbackSrc = buildLiveChatUrlFromPage();
+  const src = pageSrc || fallbackSrc || "";
   if (!src || src.startsWith("about:blank")) {
     return;
   }
 
+  const existing = document.getElementById(
+    HIDDEN_LIVE_CHAT_FRAME_ID,
+  ) as HTMLIFrameElement | null;
+  if (existing) {
+    // Upgrade fallback /live_chat?v= once the page chatframe hydrates with continuation.
+    // ページ側の chatframe が後から読み込まれたらフォールバック URL を差し替える。
+    if (pageSrc && pageSrc !== existing.src) {
+      existing.src = pageSrc;
+    }
+    return;
+  }
+
   const iframe = document.createElement("iframe");
-  iframe.id = HIDDEN_CHAT_IFRAME_ID;
+  iframe.id = HIDDEN_LIVE_CHAT_FRAME_ID;
   iframe.src = src;
   // Keep rendering alive off-screen / 画面外で描画を維持
   iframe.style.cssText =
@@ -288,37 +308,231 @@ function ensureHiddenChatReceiver(): void {
 }
 
 function buildLiveChatUrlFromPage(): string | null {
-  const videoId = extractYouTubeVideoId(location.href);
+  if (isYouTubeChatReplay()) {
+    return null;
+  }
+  const videoId = resolveYouTubePageVideoId(location.href);
   if (!videoId) {
     return null;
   }
   return `https://www.youtube.com/live_chat?v=${encodeURIComponent(videoId)}&dark_theme=1`;
 }
 
-async function trySendViaNativeInput(text: string): Promise<boolean> {
-  const chatFrame =
-    document.querySelector<HTMLIFrameElement>("iframe#chatframe") ??
-    document.querySelector<HTMLIFrameElement>("ytd-live-chat-frame iframe") ??
-    document.querySelector<HTMLIFrameElement>(
-      `iframe#${NATIVE_CHAT_FRAME_ID}, iframe#${HIDDEN_CHAT_IFRAME_ID}`,
-    );
-  if (!chatFrame?.contentDocument) {
-    return false;
-  }
-  const input = chatFrame.contentDocument.querySelector<HTMLElement>(
-    "#input.yt-live-chat-text-input-field-renderer, div#input[contenteditable], #input",
-  );
-  if (!input) {
-    return false;
-  }
+/**
+ * Relay primary <video> state/progress to extension-hosted live_chat_replay iframes,
+ * since YouTube's ytd-live-chat-frame only syncs its own #chatframe.
+ * YouTube の公式枠と同様に、拡張側 live_chat_replay iframe へも再生時刻を中継する。
+ */
+function bindYouTubeReplaySync(): () => void {
+  const boundFrames = new WeakSet<HTMLIFrameElement>();
+  const lastSent = new WeakMap<
+    HTMLIFrameElement,
+    { src: string; state: number; time: number }
+  >();
+  let attachedVideo: HTMLVideoElement | null = null;
+  let disposed = false;
+  const listenerAbort = new AbortController();
+  const pendingTimers = new Set<number>();
 
-  const sendButton = chatFrame.contentDocument.querySelector<HTMLElement>(
-    "#send-button button, yt-button-renderer#send-button button",
-  );
-  if (!canClickNativeButton(sendButton) || !fillNativeInput(input, text))
-    return false;
-  sendButton.click();
-  return true;
+  const scheduleReplaySync = (delayMs: number) => {
+    const timer = window.setTimeout(() => {
+      pendingTimers.delete(timer);
+      if (!disposed) {
+        syncAllFrames(true);
+      }
+    }, delayMs);
+    pendingTimers.add(timer);
+  };
+
+  const syncAllFrames = (force = false) => {
+    if (disposed || isHostVideoAdPlaying()) {
+      return;
+    }
+    const video = resolvePrimaryVideo();
+    if (!video || !Number.isFinite(video.currentTime)) {
+      return;
+    }
+    const state = video.paused ? 2 : 1;
+    const time = video.currentTime;
+    const candidates = [
+      document.getElementById(NATIVE_CHAT_FRAME_ID),
+      document.getElementById(HIDDEN_LIVE_CHAT_FRAME_ID),
+    ];
+    for (const candidate of candidates) {
+      if (!(candidate instanceof HTMLIFrameElement)) {
+        continue;
+      }
+      if (!boundFrames.has(candidate)) {
+        boundFrames.add(candidate);
+        candidate.addEventListener(
+          "load",
+          () => {
+            if (disposed) {
+              return;
+            }
+            lastSent.delete(candidate);
+            try {
+              candidate.contentDocument?.addEventListener(
+                "click",
+                () => {
+                  scheduleReplaySync(450);
+                },
+                { capture: true, signal: listenerAbort.signal },
+              );
+            } catch {
+              // Cross-origin frame — ignore.
+            }
+            syncAllFrames(true);
+            scheduleReplaySync(350);
+          },
+          { signal: listenerAbort.signal },
+        );
+      }
+      if (candidate.hidden || !candidate.contentWindow) {
+        continue;
+      }
+      const rawUrl = readYouTubeIframeUrl(candidate);
+      if (!rawUrl) {
+        continue;
+      }
+      let targetOrigin: string;
+      try {
+        const parsed = new URL(rawUrl);
+        if (
+          parsed.protocol !== "https:" ||
+          !isYouTubeHost(parsed.hostname) ||
+          !/^\/live_chat_replay(?:\/|$)/.test(parsed.pathname)
+        ) {
+          continue;
+        }
+        targetOrigin = parsed.origin;
+      } catch {
+        continue;
+      }
+      const prev = lastSent.get(candidate);
+      // Do not wipe YouTube's initial replay list down to t=0 while still paused at 0s.
+      // 初回読み込みで再生位置が 0 秒のまま一時停止している場合は、0 秒へのシークを送らず、公式リプレイの初期表示を保つ。
+      if (!prev && video.paused && time === 0) {
+        continue;
+      }
+      if (
+        !force &&
+        prev &&
+        prev.src === rawUrl &&
+        prev.state === state &&
+        Math.abs(prev.time - time) < 0.05
+      ) {
+        continue;
+      }
+      lastSent.set(candidate, { src: rawUrl, state, time });
+      if (force || !prev || prev.src !== rawUrl || prev.state !== state) {
+        candidate.contentWindow.postMessage(
+          { "yt-player-state-change": state },
+          targetOrigin,
+        );
+      }
+      candidate.contentWindow.postMessage(
+        { "yt-player-video-progress": time },
+        targetOrigin,
+      );
+    }
+  };
+
+  const onProgress = () => syncAllFrames(false);
+  const onSeekOrState = () => syncAllFrames(true);
+
+  const attachVideo = (next: HTMLVideoElement | null) => {
+    if (attachedVideo === next) {
+      return;
+    }
+    if (attachedVideo) {
+      attachedVideo.removeEventListener("timeupdate", onProgress);
+      attachedVideo.removeEventListener("seeked", onSeekOrState);
+      attachedVideo.removeEventListener("play", onSeekOrState);
+      attachedVideo.removeEventListener("pause", onSeekOrState);
+      attachedVideo.removeEventListener("playing", onSeekOrState);
+    }
+    attachedVideo = next;
+    if (attachedVideo) {
+      attachedVideo.addEventListener("timeupdate", onProgress);
+      attachedVideo.addEventListener("seeked", onSeekOrState);
+      attachedVideo.addEventListener("play", onSeekOrState);
+      attachedVideo.addEventListener("pause", onSeekOrState);
+      attachedVideo.addEventListener("playing", onSeekOrState);
+      syncAllFrames(true);
+    }
+  };
+
+  attachVideo(resolvePrimaryVideo());
+  syncAllFrames(true);
+  const timer = window.setInterval(() => {
+    attachVideo(resolvePrimaryVideo());
+    syncAllFrames(false);
+  }, 500);
+
+  return () => {
+    disposed = true;
+    listenerAbort.abort();
+    for (const pending of pendingTimers) {
+      window.clearTimeout(pending);
+    }
+    pendingTimers.clear();
+    window.clearInterval(timer);
+    attachVideo(null);
+  };
+}
+
+async function trySendViaNativeInput(text: string): Promise<boolean> {
+  const candidates = [
+    document.querySelector<HTMLIFrameElement>("iframe#chatframe"),
+    document.querySelector<HTMLIFrameElement>("ytd-live-chat-frame iframe"),
+    document.querySelector<HTMLIFrameElement>(`iframe#${NATIVE_CHAT_FRAME_ID}`),
+    document.querySelector<HTMLIFrameElement>(
+      `iframe#${HIDDEN_LIVE_CHAT_FRAME_ID}`,
+    ),
+  ];
+  const previousFocus =
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+  for (const chatFrame of candidates) {
+    let doc: Document | null = null;
+    try {
+      doc = chatFrame?.contentDocument ?? null;
+    } catch {
+      doc = null;
+    }
+    if (!doc) {
+      continue;
+    }
+    const input = doc.querySelector<HTMLElement>(
+      "#input.yt-live-chat-text-input-field-renderer, div#input[contenteditable], #input",
+    );
+    const sendButton = doc.querySelector<HTMLElement>(
+      "#send-button button, yt-button-renderer#send-button button",
+    );
+    if (!input || !canClickNativeButton(sendButton)) {
+      continue;
+    }
+    if (!fillNativeInput(input, text)) {
+      if (
+        chatFrame?.id === HIDDEN_LIVE_CHAT_FRAME_ID &&
+        previousFocus?.isConnected
+      ) {
+        previousFocus.focus({ preventScroll: true });
+      }
+      return false;
+    }
+    sendButton.click();
+    if (
+      chatFrame?.id === HIDDEN_LIVE_CHAT_FRAME_ID &&
+      previousFocus?.isConnected
+    ) {
+      previousFocus.focus({ preventScroll: true });
+    }
+    return true;
+  }
+  return false;
 }
 
 export {

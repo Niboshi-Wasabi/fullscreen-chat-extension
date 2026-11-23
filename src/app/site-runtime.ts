@@ -1,8 +1,17 @@
 import type { SiteAdapter } from "../adapters/types";
 import { createArchiveSync } from "../core/archive-sync";
-import { applyNgFilter } from "../core/filter";
+import { applyNgFilter, shouldDropMessage } from "../core/filter";
+import {
+  createLiveDelayBuffer,
+  mergeLiveBridgeMessages,
+  type TimedBridgeMessage,
+} from "../core/live-delay-buffer";
 import type { NormalizedMessage, SiteKind } from "../core/message";
 import { routeDisplay } from "../core/router";
+import {
+  BRIDGE_POPOUT_SYNC_TYPE,
+  type BridgeSourceSummary,
+} from "../shared/bridge-messages";
 import {
   loadSettings,
   saveSettings,
@@ -11,41 +20,56 @@ import {
   type PanelBounds,
 } from "../shared/settings";
 import {
-  EXTENSION_CHAT_PUSH_TYPE,
-  EXTENSION_CHAT_READY_TYPE,
-  EXTENSION_CHAT_SEND_TYPE,
-  isExtensionChatRuntimeMessage,
-  resolveExtensionChatPopoutUrl,
+  buildBridgePopoutUrl,
+  isTrustedExtensionSender,
 } from "../shared/runtime-messages";
 import {
+  ensureYouTubeChatFrameSrc,
   resolveNativePanelChatUrl,
   resolvePopoutTargetForPolicy,
   type PopoutTarget,
 } from "../shared/site-ids";
-import { getPageMediaTimeSec, watchMediaClock } from "../shared/video-clock";
-import { getFeatureFlags } from "../shared/feature-flags";
+import {
+  isPageChatColumnOpen,
+  shouldMountVideoPanel,
+} from "../shared/page-chat-column";
+import {
+  getLivePlaybackInterruption,
+  getPageMediaTimeSec,
+  watchLivePlaybackInterruptions,
+  watchMediaClock,
+  type LivePlaybackInterruption,
+} from "../shared/video-clock";
 import { createDanmakuView } from "../views/danmaku";
-import { createOverlayPanel } from "../views/overlay-panel";
+import {
+  createOverlayPanel,
+  type OverlayBridgeSourceOption,
+  type OverlayBridgeState,
+} from "../views/overlay-panel";
 import {
   createPipChatController,
   isDocumentPipAvailable,
 } from "../views/pip-chat";
 import { createPopoutController } from "../views/popout";
-import {
-  createYouTubeCommentsPortal,
-  type YouTubeCommentsPortal,
-} from "./youtube-comments-portal";
+import { createBridgePublisher, createBridgeSubscriber } from "./bridge-client";
+export interface SiteRuntimeContext {
+  needsDomMessages?: () => boolean;
+}
+
 export interface SiteRuntimeOptions {
   site: SiteKind;
-  createAdapter: () => SiteAdapter;
+  createAdapter: (context?: SiteRuntimeContext) => SiteAdapter;
   isSiteActive: () => boolean;
   isSiteEnabled: (settings: ExtensionSettings) => boolean;
   resolveMountParent: () => HTMLElement;
+  isCrossSiteBridgeEligible?: () => boolean;
+  resolveBridgeChannelLogin?: () => string | null;
+  resolveBridgeLabel?: () => string | null;
 }
 
 /**
  * Shared top-frame runtime for a site adapter + views.
- * サイト Adapter と View を束ねる共通トップフレーム実行部。
+ * トップフレームでサイトのアダプタと View を連携させる共通処理。
  */
 export async function startSiteRuntime(
   options: SiteRuntimeOptions,
@@ -53,10 +77,15 @@ export async function startSiteRuntime(
 ): Promise<() => void> {
   let settings = await loadSettings();
   // A cached page may already have a new runtime by the time storage responds.
-  if (signal?.aborted) return () => {};
+  if (signal?.aborted) {
+    return () => {};
+  }
 
   let active = false;
-  let disposeActive: (() => void) | null = null;
+  let activeRuntime: {
+    dispose: () => void;
+    syncMountParent: () => void;
+  } | null = null;
   let cancelled = false;
 
   const tryActivate = () => {
@@ -65,27 +94,26 @@ export async function startSiteRuntime(
     }
     // Master toggle must gate mount — player chrome can flip `enabled` back on.
     // マスタトグルでマウントを抑止。プレイヤーボタンから再有効化できる。
-    if (
-      !settings.enabled ||
-      !options.isSiteEnabled(settings) ||
-      !options.isSiteActive()
-    ) {
+    const masterEnabled = settings.enabled;
+    const siteEnabled = options.isSiteEnabled(settings);
+    const siteActive = options.isSiteActive();
+    if (!masterEnabled || !siteEnabled || !siteActive) {
       return;
     }
-    active = true;
-    disposeActive = startActiveRuntime(
+    activeRuntime = startActiveRuntime(
       options,
       () => settings,
       (next) => {
         settings = next;
       },
     );
+    active = true;
   };
 
   tryActivate();
 
   // Brief isSiteActive false (live UI flicker) must not tear down the runtime.
-  // ライブ UI 瞬断だけで runtime を破棄しない（ISS-023 レビュー）。
+  // ライブ UI が一時的に消えても、それだけで runtime を破棄しない（ISS-023 レビュー）。
   let deactivateTimer: number | null = null;
   const clearDeactivateTimer = () => {
     if (deactivateTimer !== null) {
@@ -93,7 +121,19 @@ export async function startSiteRuntime(
       deactivateTimer = null;
     }
   };
-  const pageObserver = new MutationObserver(() => {
+  const pageObserver = new MutationObserver((mutations) => {
+    // Ignore our own overlay attribute updates to avoid re-checking on self changes.
+    if (
+      mutations.length > 0 &&
+      mutations.every(
+        (m) =>
+          m.type === "attributes" &&
+          m.target instanceof Element &&
+          Boolean(m.target.closest("[data-fce-view]")),
+      )
+    ) {
+      return;
+    }
     if (!active) {
       clearDeactivateTimer();
       tryActivate();
@@ -101,6 +141,7 @@ export async function startSiteRuntime(
     }
     if (options.isSiteActive()) {
       clearDeactivateTimer();
+      activeRuntime?.syncMountParent();
       return;
     }
     if (deactivateTimer !== null) {
@@ -111,22 +152,24 @@ export async function startSiteRuntime(
       if (cancelled || !active || options.isSiteActive()) {
         return;
       }
-      disposeActive?.();
-      disposeActive = null;
+      activeRuntime?.dispose();
+      activeRuntime = null;
       active = false;
     }, 3000);
   });
   pageObserver.observe(document.documentElement, {
     childList: true,
     subtree: true,
+    attributes: true,
+    attributeFilter: ["collapsed", "hidden", "aria-label", "class"],
   });
 
   const unwatch = watchSettings((next) => {
     settings = next;
     if (!options.isSiteEnabled(next) || !next.enabled) {
       clearDeactivateTimer();
-      disposeActive?.();
-      disposeActive = null;
+      activeRuntime?.dispose();
+      activeRuntime = null;
       active = false;
       return;
     }
@@ -140,50 +183,220 @@ export async function startSiteRuntime(
     clearDeactivateTimer();
     unwatch();
     pageObserver.disconnect();
-    disposeActive?.();
-    disposeActive = null;
+    activeRuntime?.dispose();
+    activeRuntime = null;
   };
+}
+
+/** Hidden tabs must not touch the single shared popout window. */
+function canClaimPopout(): boolean {
+  return (
+    typeof document === "undefined" || document.visibilityState !== "hidden"
+  );
 }
 
 function startActiveRuntime(
   options: SiteRuntimeOptions,
   getSettings: () => ExtensionSettings,
   setSettings: (settings: ExtensionSettings) => void,
-): () => void {
+): { dispose: () => void; syncMountParent: () => void } {
   const messages: NormalizedMessage[] = [];
   const seenIds = new Set<string>();
   let lastDanmakuId: string | null = null;
   let lastPopoutDesired = false;
   let lastPipDesired = false;
+  // PiP was refused for want of a click; keep the OS popout until the mode
+  // changes, or every page focus would close it to retry PiP.
+  // クリックが無く PiP が断られた。モードが変わるまで通常別窓を保つ。
+  // 保たないとページへフォーカスが戻るたびに閉じて PiP を試し直す。
+  let pipFellBack = false;
+  // The user closed PiP. Until the switch back to the panel lands, a focus
+  // must not ask for PiP again or open the OS popout fallback instead.
+  // 利用者が PiP を閉じた。パネルへの切替が届くまで、フォーカスで PiP を
+  // 求め直したり代わりに通常別窓を開いたりしない。
+  let pipClosedByUser = false;
+  // Set by "Pin on top" while `saveSettings({ displayMode: "popout" })` is still in flight.
+  let pipPinPending = false;
   let panelMounted = false;
   let danmakuMounted = false;
-  let lastShowDanmaku = false;
   let disposed = false;
   let pipGeneration = 0;
   // Official iframe returned "chat disabled" — keep self-rendered list (ISS-022).
-  // 公式 iframe がチャット無効なら自前リストに落とす。
+  // 公式 iframe がチャット無効の画面を返したら、拡張機能のリストに切り替える。
   let nativeChatRejected = false;
   let lastNativeUrlAttempt: string | null = null;
-  // Comments portal could not find ytd-comments — fall back to scrape list (ISS-026).
-  // 通常コメント節が見つからないときは自前リストへ。
-  let commentsPortalFailed = false;
+  let rejectedPipNativeUrl: string | null = null;
   let adapterRunning = false;
+  let currentMountParent: HTMLElement | null = null;
+  let mountRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  let mountRetryCount = 0;
+  let mediaSeeking = false;
+  let lastVideoPanelMounted: boolean | null = null;
+  let danmakuBurstWindowStartMs = 0;
+  let danmakuBurstCount = 0;
+  let displayOrderSeq = 0;
+  const localOrderById = new Map<
+    string,
+    { displayOrderMs: number; orderSeq: number }
+  >();
+  const remoteOrderById = new Map<
+    string,
+    { displayOrderMs: number; orderSeq: number }
+  >();
+  let pendingDanmakuRemote: NormalizedMessage[] = [];
+  let captureDanmakuOnRelease = false;
+  const recentDanmakuKeys: string[] = [];
+  const recentDanmakuKeySet = new Set<string>();
+  const bridgeSupported = options.isCrossSiteBridgeEligible
+    ? options.isCrossSiteBridgeEligible()
+    : false;
+  const liveDelayBuffer = bridgeSupported
+    ? createLiveDelayBuffer({
+        initialDelaySec: 0,
+        getMaxVisible: () => getSettings().filter.maxVisible,
+        onRelease: (released, releasedAtMs) => {
+          for (const item of released) {
+            remoteOrderById.set(item.id, {
+              displayOrderMs: releasedAtMs,
+              orderSeq: ++displayOrderSeq,
+            });
+            if (captureDanmakuOnRelease) {
+              pendingDanmakuRemote.push(item);
+            }
+          }
+        },
+        onVisibleUpdate: (updated) => {
+          const current = getSettings();
+          if (routeDisplay(current).showDanmaku) {
+            const visible = !shouldDropMessage(updated, current.filter);
+            danmaku.update(updated, visible);
+          }
+        },
+      })
+    : null;
+  let bridgeSources: OverlayBridgeSourceOption[] = [];
+  let activeBridgeSource: BridgeSourceSummary | null = null;
+  let bridgeTickTimer: ReturnType<typeof setInterval> | null = null;
+  let stopInterruptWatch: (() => void) | null = null;
+  let bridgeSelectionSeq = 0;
 
-  const adapter = options.createAdapter();
+  function tickBufferWithDanmaku(nowMs: number): boolean {
+    if (!liveDelayBuffer) {
+      return false;
+    }
+    captureDanmakuOnRelease = true;
+    try {
+      return liveDelayBuffer.tick(nowMs);
+    } finally {
+      captureDanmakuOnRelease = false;
+    }
+  }
+
+  const bridgePublisher =
+    bridgeSupported && options.resolveBridgeChannelLogin
+      ? createBridgePublisher({
+          site: options.site,
+          attachListener: false,
+          getChannelLogin: () =>
+            options.isCrossSiteBridgeEligible &&
+            !options.isCrossSiteBridgeEligible()
+              ? null
+              : (options.resolveBridgeChannelLogin?.() ?? null),
+          getLabel: options.resolveBridgeLabel,
+        })
+      : null;
+
+  const bridgeSubscriber = bridgeSupported
+    ? createBridgeSubscriber({
+        localSite: options.site,
+        attachListener: false,
+        onBatch: ({ sourceTabId, site, items }) => {
+          if (
+            disposed ||
+            !activeBridgeSource ||
+            activeBridgeSource.tabId !== sourceTabId ||
+            activeBridgeSource.site !== site ||
+            site === options.site ||
+            !liveDelayBuffer
+          ) {
+            return;
+          }
+          for (const item of items) {
+            if (item.message.site !== site) {
+              continue;
+            }
+            liveDelayBuffer.ingest(item.message, item.receivedAtMs);
+          }
+          if (tickBufferWithDanmaku(Date.now())) {
+            publish();
+          }
+        },
+        onSourceStatus: ({ sourceTabId, status }) => {
+          if (
+            disposed ||
+            !activeBridgeSource ||
+            activeBridgeSource.tabId !== sourceTabId
+          ) {
+            return;
+          }
+          if (status === "closed" || status === "channel-changed") {
+            detachBridgeSource({
+              alreadyUnsubscribed: true,
+              refreshSources: true,
+            });
+          }
+        },
+      })
+    : null;
+
+  const needsDomMessages = (): boolean => {
+    const current = getSettings();
+    if (!current.enabled || !options.isSiteEnabled(current)) {
+      return false;
+    }
+    if (bridgePublisher?.hasSubscribers() || activeBridgeSource !== null) {
+      return true;
+    }
+    const route = routeDisplay(current);
+    if (route.showDanmaku) {
+      return true;
+    }
+    if (route.showPanel && resolvePanelNativeUrlForMount(current) === null) {
+      return true;
+    }
+    if (
+      route.showPopout &&
+      (lastPipDesired || pipChat.isOpen()) &&
+      resolvePipNativeUrl(current) === null
+    ) {
+      return true;
+    }
+    return false;
+  };
+  const adapter = options.createAdapter({ needsDomMessages });
   const panel = createOverlayPanel({
-    onSend: (text, replyToId) =>
-      replyToId
-        ? (adapter.replyTo?.(replyToId, text) ?? Promise.resolve(false))
-        : (adapter.sendMessage?.(text) ?? Promise.resolve(false)),
+    site: options.site,
+    onSend: (text) => adapter.sendMessage?.(text) ?? Promise.resolve(false),
     onPositionChange: (position) => {
-      void persistPanelPosition(position);
+      void persistPanelPosition(position).catch((error: unknown) => {
+        console.warn("[fce] persist panel position failed", error);
+      });
     },
     onQuickPanelChange: (patch) => {
-      void saveSettings({ panel: patch });
+      void saveSettings({ panel: patch }).catch((error: unknown) => {
+        console.warn("[fce] quick panel save failed", error);
+      });
     },
     onOpenOptions: () => {
-      void browser.runtime.openOptionsPage();
+      try {
+        void browser.runtime.openOptionsPage().catch((error: unknown) => {
+          console.warn("[fce] openOptionsPage failed", error);
+        });
+      } catch (error: unknown) {
+        console.warn("[fce] openOptionsPage failed", error);
+      }
     },
+    onPinOnTop: pinChatOnTop,
     onNativeChatRejected: () => {
       if (disposed || nativeChatRejected) {
         return;
@@ -192,43 +405,152 @@ function startActiveRuntime(
       panel.setNativeChatUrl(null);
       // Clear panel native URL so the list surface shows; adapter interval
       // recreates the hidden receiver when the panel frame is gone.
-      // パネル公式枠を外して自前リストへ。隠し受信は adapter 側 interval が立て直す。
+      // パネル公式枠を外して自前リストへ。画面外での受信はアダプタの定期処理で再開する。
       ensureRuntimeMounted(getSettings(), options.resolveMountParent());
+      publish();
     },
-  });
-  const commentsPortal: YouTubeCommentsPortal | null =
-    options.site === "youtube-comments"
-      ? createYouTubeCommentsPortal({
-          resolveHost: () => panel.getNativePortalHost(),
-          onUnavailable: () => {
-            if (disposed || commentsPortalFailed) {
-              return;
-            }
-            commentsPortalFailed = true;
-            panel.setNativePortalActive(false);
-            commentsPortal?.sync(false);
-            ensureCommentsAdapterRunning(true);
-            ensureRuntimeMounted(getSettings(), options.resolveMountParent());
+    ...(bridgeSupported
+      ? {
+          bridge: {
+            onRefreshSources: () => {
+              void refreshBridgeSources();
+            },
+            onSelectSource: (tabId: number | null) => {
+              void selectBridgeSource(tabId);
+            },
+            onAdjustDelay: (deltaSec: number) => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              liveDelayBuffer.setDelaySec(
+                liveDelayBuffer.getDelaySec() + deltaSec,
+              );
+              const changed = tickBufferWithDanmaku(Date.now());
+              syncPanelBridgeState();
+              if (changed) {
+                publish();
+              } else {
+                syncBridgePopoutIfNeeded(getSettings());
+              }
+            },
+            onResume: () => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              if (suspendBridgeIfInterrupted()) {
+                return;
+              }
+              remoteOrderById.clear();
+              pendingDanmakuRemote = [];
+              liveDelayBuffer.resume(Date.now());
+              syncPanelBridgeState();
+              publish();
+            },
+            onDisconnect: () => {
+              detachBridgeSource();
+            },
+            onMarkScene: () => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              if (suspendBridgeIfInterrupted()) {
+                return;
+              }
+              if (liveDelayBuffer.markScene(Date.now())) {
+                syncPanelBridgeState();
+              }
+            },
+            onSelectReaction: (messageId: string) => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              if (suspendBridgeIfInterrupted()) {
+                return;
+              }
+              const visible = applyNgFilter(
+                liveDelayBuffer.getVisibleMessages(),
+                getSettings().filter,
+              ).visible;
+              if (!visible.some((item) => item.id === messageId)) {
+                return;
+              }
+              if (liveDelayBuffer.selectReaction(messageId) !== null) {
+                syncPanelBridgeState();
+              }
+            },
+            onApplySuggestedDelay: () => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              if (suspendBridgeIfInterrupted()) {
+                return;
+              }
+              const applied = liveDelayBuffer.applySuggestedDelay();
+              if (applied === null) {
+                syncPanelBridgeState();
+                return;
+              }
+              const changed = tickBufferWithDanmaku(Date.now());
+              syncPanelBridgeState();
+              if (changed) {
+                publish();
+              } else {
+                syncBridgePopoutIfNeeded(getSettings());
+              }
+            },
+            onCancelCalibration: () => {
+              if (disposed || !liveDelayBuffer || !activeBridgeSource) {
+                return;
+              }
+              if (liveDelayBuffer.cancelCalibration()) {
+                syncPanelBridgeState();
+              }
+            },
           },
-        })
-      : null;
+        }
+      : {}),
+  });
+  bridgeSubscriber?.start();
+  syncPanelBridgeState();
   const danmaku = createDanmakuView();
   const popout = createPopoutController({
-    resolveTarget: () => resolveRuntimePopoutTarget(getSettings()),
+    resolveTarget: () => resolveActivePopoutTarget(getSettings()),
   });
+  let pageUnloading = false;
   const pipChat = createPipChatController({
     onSend: (text) => adapter.sendMessage?.(text) ?? Promise.resolve(false),
+    onNativeChatRejected: () => {
+      if (disposed) return;
+      rejectedPipNativeUrl = resolvePipNativeUrl(getSettings());
+      pipChat.setNativeChatUrl(null);
+      publish();
+    },
+    onClosedExternally: () => {
+      lastPipDesired = false;
+      pipClosedByUser = true;
+      const wasPinPending = pipPinPending;
+      pipPinPending = false;
+      // Popout mode would reopen it as an OS popout on the next sync.
+      // 別窓モードのままだと次の同期で通常別窓として開き直す。
+      if (!disposed && !pageUnloading) returnToPanelFromPopout(wasPinPending);
+    },
   });
+  function clearDanmakuBoard(): void {
+    lastDanmakuId = null;
+    recentDanmakuKeys.length = 0;
+    recentDanmakuKeySet.clear();
+    danmakuBurstWindowStartMs = 0;
+    danmakuBurstCount = 0;
+    danmaku.clear();
+  }
 
   const archiveSync = createArchiveSync({
     getOffsetSec: () => getSettings().archive.syncOffsetSec,
     getMaxSkewSec: () => getSettings().archive.maxSkewSec,
+    onSeekJump: clearDanmakuBoard,
     onDue: (message) => {
       const settings = getSettings();
-      const allowed =
-        message.isSelf ||
-        applyNgFilter([message], settings.filter).visible.length > 0;
-      if (!allowed) {
+      if (shouldDropMessage(message, settings.filter)) {
         return;
       }
       rememberMessage(message);
@@ -237,13 +559,20 @@ function startActiveRuntime(
   });
 
   // Mount after archiveSync exists — adapter callbacks may fire synchronously.
-  // adapter が同期で発火しうるため、archiveSync 初期化後にマウントする。
+  // アダプタが同期的に通知する場合があるため、archiveSync 初期化後にマウントする。
   ensureRuntimeMounted(getSettings(), options.resolveMountParent());
-  ensureCommentsAdapterRunning(!wantsCommentsPortal(getSettings()));
+  if (options.site === "youtube-live") {
+    void ensureYouTubeChatFrameSrc(location.href).then((resolved) => {
+      if (!disposed && resolved) {
+        ensureRuntimeMounted(getSettings(), options.resolveMountParent());
+      }
+    });
+  }
 
   const stopMediaClock = watchMediaClock((timeSec, meta) => {
-    if (meta.seeked) {
-      lastDanmakuId = null;
+    mediaSeeking = Boolean(meta.seeking);
+    if ((meta.seeked && !meta.initial) || meta.seeking) {
+      clearDanmakuBoard();
     }
     archiveSync.onMediaTime(timeSec, meta);
     refreshArchivePanel(timeSec);
@@ -251,13 +580,13 @@ function startActiveRuntime(
 
   const unwatch = watchSettings((next, previous) => {
     setSettings(next);
+    if (next.displayMode === "popout") {
+      pipPinPending = false;
+    }
     const modeChanged = previous?.displayMode !== next.displayMode;
     const enabledChanged = previous?.enabled !== next.enabled;
     const panelNativeChanged =
       previous?.panel.useNativeChat !== next.panel.useNativeChat;
-    if (panelNativeChanged) {
-      commentsPortalFailed = false;
-    }
     const popoutPolicyChanged =
       previous?.popout.openPolicy !== next.popout.openPolicy ||
       previous?.popout.alwaysOnTop !== next.popout.alwaysOnTop;
@@ -299,10 +628,25 @@ function startActiveRuntime(
   });
 
   const onFullscreen = () => {
+    syncOfficialOverlay();
+    if (!document.fullscreenElement) {
+      syncMountParent();
+    }
     panel.reparentForFullscreen();
     danmaku.reparentForFullscreen();
   };
   document.addEventListener("fullscreenchange", onFullscreen);
+  window.addEventListener("resize", syncMountParent);
+  document.addEventListener("visibilitychange", onWatchVisibility);
+  window.addEventListener("focus", onBecomeForeground);
+  const onPageHide = () => {
+    pageUnloading = true;
+  };
+  const onPageShow = () => {
+    pageUnloading = false;
+  };
+  window.addEventListener("pagehide", onPageHide, { capture: true });
+  window.addEventListener("pageshow", onPageShow, { capture: true });
 
   const onKeydown = (event: KeyboardEvent) => {
     if (!getSettings().compose.stealShortcuts) {
@@ -317,109 +661,246 @@ function startActiveRuntime(
 
   const onRuntimeMessage: Parameters<
     typeof browser.runtime.onMessage.addListener
-  >[0] = (message) => {
+  >[0] = (message, sender) => {
+    const senderInfo = sender as {
+      id?: string;
+      url?: string;
+      frameId?: number;
+      tab?: unknown;
+    };
+    if (!isTrustedExtensionSender(senderInfo) || senderInfo.tab !== undefined) {
+      return undefined;
+    }
+    if (bridgePublisher?.handleMessage(message, senderInfo as never)) {
+      return undefined;
+    }
+    if (bridgeSubscriber?.handleMessage(message, senderInfo as never)) {
+      return undefined;
+    }
+    const payload = message as { type?: string; command?: string } | undefined;
     if (
-      message?.type === "fce:command" &&
-      message.command === "toggle-compose-focus"
+      payload?.type === "fce:command" &&
+      payload.command === "toggle-compose-focus"
     ) {
-      const route = routeDisplay(options.site, getSettings());
+      const route = routeDisplay(getSettings());
       if (route.showPanel) panel.focusCompose();
       else if (pipChat.isOpen()) pipChat.focusCompose();
       else if (route.showPopout) popout.focus();
-      return;
     }
-    if (!isExtensionChatRuntimeMessage(message) || disposed) {
-      return;
-    }
-    if (message.type === EXTENSION_CHAT_READY_TYPE) {
-      pushExtensionChatMessages();
-      return;
-    }
-    if (message.type === EXTENSION_CHAT_SEND_TYPE) {
-      const text = typeof message.text === "string" ? message.text.trim() : "";
-      if (!text) {
-        return;
-      }
-      void adapter.sendMessage?.(text);
-    }
+    return undefined;
   };
-  browser.runtime.onMessage.addListener(onRuntimeMessage);
+  try {
+    browser.runtime.onMessage.addListener(onRuntimeMessage);
+  } catch {
+    // Extension context may already be invalidated.
+  }
   publish();
 
-  return () => {
-    disposed = true;
-    pipGeneration++;
-    browser.runtime.onMessage.removeListener(onRuntimeMessage);
-    unwatch();
-    stopMediaClock();
-    archiveSync.reset();
-    // Restore ytd-comments before tearing down the portal host.
-    // ポータルホスト破棄前に公式ノードをページへ戻す。
-    commentsPortal?.dispose();
-    if (adapterRunning) {
-      adapter.stop();
-      adapterRunning = false;
-    }
-    panel.unmount();
-    danmaku.unmount();
-    panelMounted = false;
-    danmakuMounted = false;
-    if (lastPipDesired) {
-      pipChat.close();
-      lastPipDesired = false;
-    }
-    if (lastPopoutDesired) {
-      popout.close();
-      lastPopoutDesired = false;
-    }
-    document.removeEventListener("fullscreenchange", onFullscreen);
-    window.removeEventListener("keydown", onKeydown, true);
+  return {
+    dispose: () => {
+      disposed = true;
+      pipGeneration++;
+      clearMountRetryTimer();
+      stopBridgeWatching();
+      bridgePublisher?.stop();
+      bridgeSubscriber?.stop();
+      liveDelayBuffer?.reset();
+      activeBridgeSource = null;
+      localOrderById.clear();
+      remoteOrderById.clear();
+      pendingDanmakuRemote = [];
+      recentDanmakuKeys.length = 0;
+      recentDanmakuKeySet.clear();
+      try {
+        browser.runtime.onMessage.removeListener(onRuntimeMessage);
+      } catch {
+        // Extension context may already be invalidated on teardown.
+      }
+      unwatch();
+      stopMediaClock();
+      archiveSync.reset();
+      if (adapterRunning) {
+        adapter.stop();
+        adapterRunning = false;
+      }
+      panel.unmount();
+      danmaku.unmount();
+      panelMounted = false;
+      danmakuMounted = false;
+      if (lastPipDesired || pipChat.isOpen()) {
+        pipChat.close();
+        lastPipDesired = false;
+      }
+      if (lastPopoutDesired || popout.isOpen()) {
+        popout.close();
+        lastPopoutDesired = false;
+      }
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      window.removeEventListener("resize", syncMountParent);
+      document.removeEventListener("visibilitychange", onWatchVisibility);
+      window.removeEventListener("focus", onBecomeForeground);
+      window.removeEventListener("pagehide", onPageHide, { capture: true });
+      window.removeEventListener("pageshow", onPageShow, { capture: true });
+      window.removeEventListener("keydown", onKeydown, true);
+    },
+    syncMountParent,
   };
 
-  function wantsCommentsPortal(next: ExtensionSettings): boolean {
-    // Portal is panel-only; popout uses the scraped extension list (ISS-003).
-    // ポータルはパネル専用。別窓は scrape した拡張リスト（ISS-003）。
-    const route = routeDisplay(options.site, next);
+  function needsBetterMountParent(parent: HTMLElement | null): boolean {
+    if (!parent || !parent.isConnected || parent === document.body) {
+      return true;
+    }
+    if (typeof parent.getBoundingClientRect !== "function") {
+      return false;
+    }
+    const rect = parent.getBoundingClientRect();
+    return rect.width <= 0 || rect.height <= 0;
+  }
+
+  function needsYouTubeNativeUrlRetry(): boolean {
+    if (
+      options.site !== "youtube-live" ||
+      !panelMounted ||
+      nativeChatRejected
+    ) {
+      return false;
+    }
+    const next = getSettings();
+    if (!next.enabled || !next.panel.useNativeChat) {
+      return false;
+    }
     return (
-      options.site === "youtube-comments" &&
-      next.panel.useNativeChat &&
-      !commentsPortalFailed &&
-      route.showPanel
+      !lastNativeUrlAttempt || !lastNativeUrlAttempt.includes("continuation=")
     );
   }
 
-  function ensureCommentsAdapterRunning(shouldRun: boolean): void {
+  function syncYouTubeNativeChatUrl(): void {
+    if (!needsYouTubeNativeUrlRetry() || disposed) {
+      return;
+    }
+    const next = getSettings();
+    const candidate = resolveNativePanelChatUrl(location.href);
+    if (candidate && candidate !== lastNativeUrlAttempt) {
+      ensureRuntimeMounted(
+        next,
+        currentMountParent ?? options.resolveMountParent(),
+      );
+      return;
+    }
+    if (!candidate || !candidate.includes("continuation=")) {
+      void ensureYouTubeChatFrameSrc(location.href).then((resolved) => {
+        if (!disposed && resolved) {
+          ensureRuntimeMounted(
+            getSettings(),
+            currentMountParent ?? options.resolveMountParent(),
+          );
+        }
+      });
+    }
+  }
+
+  function clearMountRetryTimer(): void {
+    if (mountRetryTimer !== null) {
+      globalThis.clearTimeout(mountRetryTimer);
+      mountRetryTimer = null;
+    }
+  }
+
+  function scheduleMountRetryIfNeeded(): void {
+    if (
+      disposed ||
+      mountRetryTimer !== null ||
+      mountRetryCount >= 24 ||
+      (!needsBetterMountParent(currentMountParent) &&
+        !needsYouTubeNativeUrlRetry())
+    ) {
+      return;
+    }
+    mountRetryTimer = globalThis.setTimeout(() => {
+      mountRetryTimer = null;
+      mountRetryCount += 1;
+      syncMountParent();
+      scheduleMountRetryIfNeeded();
+    }, 250);
+  }
+
+  function syncMountParent(): void {
+    if (disposed) {
+      return;
+    }
+    syncOfficialOverlay();
+    if (document.fullscreenElement) {
+      return;
+    }
+    syncYouTubeNativeChatUrl();
+    if (needsBetterMountParent(currentMountParent)) {
+      const resolved = options.resolveMountParent();
+      if (resolved !== currentMountParent) {
+        currentMountParent = resolved;
+        if (panelMounted) {
+          panel.mount(resolved);
+        }
+        if (danmakuMounted) {
+          danmaku.mount(resolved);
+        }
+      }
+    }
+    if (
+      !needsBetterMountParent(currentMountParent) &&
+      !needsYouTubeNativeUrlRetry()
+    ) {
+      mountRetryCount = 0;
+      clearMountRetryTimer();
+    } else {
+      scheduleMountRetryIfNeeded();
+    }
+  }
+
+  function shouldRunAdapter(next: ExtensionSettings): boolean {
+    return next.enabled && options.isSiteEnabled(next);
+  }
+
+  function ensureAdapterRunning(shouldRun: boolean): void {
     if (shouldRun) {
       if (adapterRunning) {
         return;
       }
-      adapterRunning = true;
       adapter.start(onAdapterMessage);
+      bridgePublisher?.start();
+      adapterRunning = true;
       return;
     }
     if (!adapterRunning) {
+      bridgePublisher?.stop();
       return;
     }
+    bridgePublisher?.stop();
     adapter.stop();
     adapterRunning = false;
   }
 
   function onAdapterMessage(message: NormalizedMessage): void {
+    if (disposed) {
+      return;
+    }
+    bridgePublisher?.syncChannel();
     if (seenIds.has(message.id)) {
-      // React hydration can finish an already displayed live row in later tasks.
+      // React hydration can finish an already displayed live/VOD row in later tasks.
+      if (options.site === "twitch" && message.videoOffsetSec !== undefined) {
+        archiveSync.ingest(message);
+        const media = getPageMediaTimeSec();
+        if (media !== null) {
+          refreshArchivePanel(media);
+        }
+        return;
+      }
       const index = messages.findIndex((item) => item.id === message.id);
-      if (
-        options.site === "twitch" &&
-        message.videoOffsetSec === undefined &&
-        index >= 0
-      ) {
+      if (message.videoOffsetSec === undefined && index >= 0) {
         messages[index] = message;
+        bridgePublisher?.enqueue(message);
         publish();
-        if (routeDisplay(options.site, getSettings()).showDanmaku) {
-          const visible = Boolean(
-            message.isSelf ||
-            applyNgFilter([message], getSettings().filter).visible.length,
-          );
+        if (routeDisplay(getSettings()).showDanmaku) {
+          const visible = !shouldDropMessage(message, getSettings().filter);
           danmaku.update(message, visible);
         }
       }
@@ -431,12 +912,13 @@ function startActiveRuntime(
       // アーカイブ／VOD は再生時刻に合わせて解放。
       archiveSync.ingest(message);
       const media = getPageMediaTimeSec();
-      if (media !== null) {
+      if (media !== null && !mediaSeeking) {
         archiveSync.onMediaTime(media, { seeked: false });
         refreshArchivePanel(media);
       }
       return;
     }
+    bridgePublisher?.enqueue(message);
     rememberMessage(message);
     publish(message);
   }
@@ -445,138 +927,312 @@ function startActiveRuntime(
     if (messages.some((entry) => entry.id === message.id)) {
       return;
     }
+    seenIds.add(message.id);
     messages.push(message);
+    localOrderById.set(message.id, {
+      displayOrderMs: Date.now(),
+      orderSeq: ++displayOrderSeq,
+    });
     while (messages.length > 500) {
       const removed = messages.shift();
       if (removed) {
         seenIds.delete(removed.id);
+        localOrderById.delete(removed.id);
       }
     }
+  }
+
+  function allowDanmakuBurst(incoming: NormalizedMessage): boolean {
+    if (incoming.isSelf) {
+      return true;
+    }
+    const now = Date.now();
+    if (now - danmakuBurstWindowStartMs > 500) {
+      danmakuBurstWindowStartMs = now;
+      danmakuBurstCount = 0;
+    }
+    if (danmakuBurstCount >= 3) {
+      return false;
+    }
+    danmakuBurstCount += 1;
+    return true;
+  }
+
+  function resolveVisibleArchiveMessages(
+    settings: ExtensionSettings,
+    mediaSec: number | null = getPageMediaTimeSec(),
+  ): NormalizedMessage[] {
+    if (mediaSec !== null && archiveSync.size() > 0) {
+      return applyNgFilter(archiveSync.visibleUpTo(mediaSec), settings.filter)
+        .visible;
+    }
+    return applyNgFilter(messages, settings.filter).visible;
   }
 
   function refreshArchivePanel(mediaSec: number): void {
     const settings = getSettings();
-    const route = routeDisplay(options.site, settings);
-    if (
-      !route.showPanel ||
-      resolvePanelNativeUrlForMount(settings) ||
-      wantsCommentsPortal(settings) ||
-      archiveSync.size() === 0
-    ) {
+    const route = routeDisplay(settings);
+    if (archiveSync.size() === 0) {
       return;
     }
-    const timed = archiveSync.visibleUpTo(mediaSec);
-    const filtered = applyNgFilter(timed, settings.filter).visible;
-    panel.setMessages(filtered);
+    const visible = resolveVisibleArchiveMessages(settings, mediaSec);
+    if (
+      route.showPanel &&
+      panelMounted &&
+      !resolvePanelNativeUrlForMount(settings)
+    ) {
+      panel.setMessages(visible);
+    }
+    if (
+      route.showPopout &&
+      (lastPipDesired || pipChat.isOpen()) &&
+      !resolvePipNativeUrl(settings)
+    ) {
+      pipChat.setMessages(visible.slice(-settings.filter.maxVisible));
+    }
+  }
+
+  function resolveMixedLiveMessages(
+    settings: ExtensionSettings,
+  ): NormalizedMessage[] {
+    if (!activeBridgeSource || !liveDelayBuffer) {
+      return resolveVisibleArchiveMessages(settings);
+    }
+    const localEntries: TimedBridgeMessage[] = [];
+    for (const item of messages) {
+      if (item.videoOffsetSec !== undefined) {
+        continue;
+      }
+      const order = localOrderById.get(item.id);
+      localEntries.push({
+        message: item,
+        displayOrderMs: order?.displayOrderMs ?? item.timestampMs,
+        orderSeq: order?.orderSeq ?? 0,
+      });
+    }
+    const remoteMessages = liveDelayBuffer.getVisibleMessages();
+    const visibleRemoteIds = new Set<string>();
+    const remoteEntries: TimedBridgeMessage[] = [];
+    for (const item of remoteMessages) {
+      visibleRemoteIds.add(item.id);
+      let order = remoteOrderById.get(item.id);
+      if (!order) {
+        order = {
+          displayOrderMs: Date.now(),
+          orderSeq: ++displayOrderSeq,
+        };
+        remoteOrderById.set(item.id, order);
+      }
+      remoteEntries.push({
+        message: item,
+        displayOrderMs: order.displayOrderMs,
+        orderSeq: order.orderSeq,
+      });
+    }
+    for (const id of remoteOrderById.keys()) {
+      if (!visibleRemoteIds.has(id)) {
+        remoteOrderById.delete(id);
+      }
+    }
+    const merged = mergeLiveBridgeMessages(localEntries, remoteEntries);
+    return applyNgFilter(merged, settings.filter).visible;
+  }
+
+  function clearRecentDanmakuForSite(site: SiteKind): void {
+    const prefix = `${site}:`;
+    if (lastDanmakuId?.startsWith(prefix)) {
+      lastDanmakuId = null;
+    }
+    let write = 0;
+    for (let read = 0; read < recentDanmakuKeys.length; read += 1) {
+      const key = recentDanmakuKeys[read]!;
+      if (key.startsWith(prefix)) {
+        recentDanmakuKeySet.delete(key);
+        continue;
+      }
+      recentDanmakuKeys[write] = key;
+      write += 1;
+    }
+    recentDanmakuKeys.length = write;
+  }
+
+  function pushDanmaku(
+    incoming: NormalizedMessage,
+    settings: ExtensionSettings,
+  ): void {
+    const key = `${incoming.site}:${incoming.id}`;
+    // Check NG directly rather than `visible` (which may be capped to maxVisible)
+    // so rewound archive/VOD messages still appear as danmaku.
+    const stillVisible = !shouldDropMessage(incoming, settings.filter);
+    if (
+      stillVisible &&
+      key !== lastDanmakuId &&
+      !recentDanmakuKeySet.has(key) &&
+      allowDanmakuBurst(incoming)
+    ) {
+      lastDanmakuId = key;
+      recentDanmakuKeySet.add(key);
+      recentDanmakuKeys.push(key);
+      while (recentDanmakuKeys.length > 500) {
+        const evicted = recentDanmakuKeys.shift();
+        if (evicted) {
+          recentDanmakuKeySet.delete(evicted);
+        }
+      }
+      danmaku.push(incoming);
+    }
+  }
+
+  function syncBridgePopoutIfNeeded(
+    settings: ExtensionSettings,
+    visibleOverride?: NormalizedMessage[],
+  ): void {
+    if (disposed || !activeBridgeSource || !liveDelayBuffer) {
+      return;
+    }
+    const route = routeDisplay(settings);
+    if (!route.showPopout && !popout.isOpen()) {
+      return;
+    }
+    const visible = visibleOverride ?? resolveMixedLiveMessages(settings);
+    const bufferState = liveDelayBuffer.getState();
+    try {
+      void browser.runtime
+        ?.sendMessage?.({
+          type: BRIDGE_POPOUT_SYNC_TYPE,
+          snapshot: {
+            localSite: options.site,
+            peerSite: activeBridgeSource.site,
+            peerLabel: activeBridgeSource.label,
+            delaySec: liveDelayBuffer.getDelaySec(),
+            suspendedReason:
+              bufferState.status === "suspended" ? bufferState.reason : null,
+            messages: visible.slice(-settings.filter.maxVisible),
+          },
+        })
+        ?.catch?.(() => undefined);
+    } catch {
+      // Extension context may already be invalidated.
+    }
   }
 
   function publish(incoming?: NormalizedMessage): void {
     const settings = getSettings();
-    const route = routeDisplay(options.site, settings);
-    const filtered = applyNgFilter(messages, settings.filter).visible;
-    if (route.showPanel) {
-      panel.applySettings(settings);
+    const route = routeDisplay(settings);
+    const releasedRemote = pendingDanmakuRemote.splice(0);
+    const visible = resolveMixedLiveMessages(settings);
+    if (route.showPanel && panelMounted) {
       const nativeUrl = resolvePanelNativeUrlForMount(settings);
       panel.setNativeChatUrl(nativeUrl);
-      syncCommentsPortalSurface(settings);
-      // Native replay / portal UI sync themselves; custom list uses timed history.
-      // 公式リプレイ／ポータルは自前同期。自前リストは時刻付き履歴を優先。
-      const media = getPageMediaTimeSec();
-      if (wantsCommentsPortal(settings) || nativeUrl) {
-        // Official surface — do not push scraped rows into the hidden list.
-        // 公式面表示中は隠れリストへ scrape 行を送らない。
-      } else if (media !== null && archiveSync.size() > 0) {
-        panel.setMessages(
-          applyNgFilter(archiveSync.visibleUpTo(media), settings.filter)
-            .visible,
-        );
-      } else {
-        panel.setMessages(filtered);
+      if (!nativeUrl) {
+        panel.setMessages(visible);
       }
-      panel.reparentForFullscreen();
     }
     if (route.showDanmaku) {
       danmaku.applySettings(settings);
+      danmaku.setMixedMode?.(activeBridgeSource !== null);
       danmaku.reparentForFullscreen();
       if (incoming) {
-        const stillVisible =
-          incoming.isSelf || filtered.some((item) => item.id === incoming.id);
-        if (stillVisible && incoming.id !== lastDanmakuId) {
-          lastDanmakuId = incoming.id;
-          danmaku.push(incoming);
-        }
+        pushDanmaku(incoming, settings);
+      }
+      for (const remoteItem of releasedRemote) {
+        pushDanmaku(remoteItem, settings);
       }
     }
-    if (route.showPopout) {
-      const visible = filtered.slice(-settings.filter.maxVisible);
-      if (lastPipDesired || pipChat.isOpen()) {
-        pipChat.setMessages(visible);
-      }
-      if (usesExtensionChatPopout() && (lastPopoutDesired || popout.isOpen())) {
-        pushExtensionChatMessages(visible);
-      }
+    if (route.showPopout && (lastPipDesired || pipChat.isOpen())) {
+      pipChat.setMessages(visible.slice(-settings.filter.maxVisible));
     }
+    syncBridgePopoutIfNeeded(settings, visible);
   }
 
-  function usesExtensionChatPopout(): boolean {
-    return options.site === "youtube-comments";
+  function onBecomeForeground(): void {
+    if (disposed || !canClaimPopout()) {
+      return;
+    }
+    if (!routeDisplay(getSettings()).showPopout) {
+      return;
+    }
+    syncPopout(true, { reclaim: true });
   }
 
-  function resolveRuntimePopoutTarget(
+  function onWatchVisibility(): void {
+    if (document.visibilityState === "hidden") {
+      // Keep the window. The tab the user switches to retargets it.
+      // 窓は残す。切り替えた先のタブが URL を合わせる。
+      lastPopoutDesired = false;
+      return;
+    }
+    onBecomeForeground();
+  }
+
+  function resolveActivePopoutTarget(
     settings: ExtensionSettings,
   ): PopoutTarget | null {
-    if (usesExtensionChatPopout()) {
-      // No official comments URL — open the extension-owned list page (ISS-003).
-      // 公式コメント別窓は無いので拡張自前ページを開く。
-      return {
-        siteKey: "youtube",
-        url: resolveExtensionChatPopoutUrl(),
-      };
+    if (activeBridgeSource !== null) {
+      const siteKey = options.site === "twitch" ? "twitch" : "youtube";
+      const bridgeUrl = buildBridgePopoutUrl(siteKey);
+      if (bridgeUrl) {
+        return { siteKey, url: bridgeUrl };
+      }
     }
     return resolvePopoutTargetForPolicy(settings.popout.openPolicy);
   }
 
-  function pushExtensionChatMessages(
-    rows?: ReturnType<typeof applyNgFilter>["visible"],
+  /**
+   * `reclaim`: this watch tab came back to the front. Take the shared window
+   * back without focusing it; another tab may have retargeted it meanwhile.
+   * `reclaim`: 視聴タブが前面に戻った。他タブが差し替えた可能性があるので、
+   * フォーカスを移さず、共有の別窓をこの視聴タブに戻す。
+   */
+  function syncPopout(
+    shouldShow: boolean,
+    mountOptions?: { syncUrl?: boolean; reclaim?: boolean },
   ): void {
-    if (!usesExtensionChatPopout() || disposed) {
+    // Background watch tabs share one popout window. They must not open,
+    // retarget, or close it while the user is looking at another tab.
+    // 別窓は一つ。バックグラウンドの視聴タブは別窓の開閉や URL の変更を行わない。
+    if (shouldShow && !canClaimPopout()) {
       return;
     }
     const settings = getSettings();
-    const visible = (
-      rows ?? applyNgFilter(messages, settings.filter).visible
-    ).slice(-settings.filter.maxVisible);
-    void browser.runtime
-      .sendMessage({
-        type: EXTENSION_CHAT_PUSH_TYPE,
-        messages: visible.map((message) => ({
-          id: message.id,
-          authorName: message.authorName,
-          text: message.text,
-        })),
-      })
-      .catch(() => undefined);
-  }
-
-  function syncPopout(
-    shouldShow: boolean,
-    mountOptions?: { syncUrl?: boolean },
-  ): void {
-    const settings = getSettings();
-    const target = resolveRuntimePopoutTarget(settings);
-    const pipAvailable =
-      isDocumentPipAvailable() || getFeatureFlags().documentPip;
-    // alwaysOnTop → Document PiP; otherwise OS window (official or extension page).
-    // 常時前面なら Document PiP。それ以外は OS 別窓（公式または拡張ページ）。
-    const wantPip = shouldShow && pipAvailable && settings.popout.alwaysOnTop;
+    const target = resolveActivePopoutTarget(settings);
+    const pipAvailable = isDocumentPipAvailable();
+    if (!shouldShow) {
+      pipFellBack = false;
+      pipClosedByUser = false;
+      pipPinPending = false;
+    }
+    if (shouldShow && pipClosedByUser) {
+      return;
+    }
+    const pipActiveOrOpening =
+      pipChat.isOpen() || Boolean(pipChat.isOpening?.());
+    if (
+      shouldShow &&
+      pipAvailable &&
+      settings.popout.alwaysOnTop &&
+      !pipFellBack &&
+      !pipActiveOrOpening &&
+      !hasTransientUserActivation()
+    ) {
+      pipFellBack = true;
+    }
+    const wantPip =
+      shouldShow && pipAvailable && settings.popout.alwaysOnTop && !pipFellBack;
     const wantWindow = shouldShow && target !== null && !wantPip;
 
     if (wantPip) {
+      pipChat.setBridgeMode?.({
+        active: activeBridgeSource !== null,
+        headerLabel: activeBridgeSource?.label ?? undefined,
+        readOnly: activeBridgeSource !== null,
+      });
+      pipChat.setNativeChatUrl(resolvePipNativeUrl(settings));
       if (lastPopoutDesired || popout.isOpen()) {
         lastPopoutDesired = false;
         popout.close();
       }
-      if (!lastPipDesired || !pipChat.isOpen()) {
+      if (!lastPipDesired || !pipActiveOrOpening) {
         lastPipDesired = true;
         const requested = ++pipGeneration;
         void pipChat.open().then((opened) => {
@@ -584,57 +1240,398 @@ function startActiveRuntime(
             return;
           if (!opened) {
             // PiP unavailable or gesture blocked — fall back to OS popout.
+            // A tab that merely came to the front must not pull focus to it.
             // PiP 不可／ジェスチャ不足時は通常別窓へフォールバック。
+            // 前面に戻っただけのタブでは、その窓へフォーカスを移さない。
             lastPipDesired = false;
+            pipFellBack = true;
             if (target) {
-              lastPopoutDesired = true;
-              popout.open();
-              pushExtensionChatMessages();
+              const fallback = mountOptions?.reclaim
+                ? popout.claim()
+                : popout.open();
+              void Promise.resolve(fallback).then(rememberPopoutIfAccepted);
+              syncBridgePopoutIfNeeded(getSettings());
             }
             return;
           }
-          const filtered = applyNgFilter(
-            messages,
-            getSettings().filter,
-          ).visible.slice(-getSettings().filter.maxVisible);
-          pipChat.setMessages(filtered);
+          const latest = getSettings();
+          pipChat.setMessages(
+            resolveMixedLiveMessages(latest).slice(-latest.filter.maxVisible),
+          );
         });
       }
       return;
     }
 
-    if (lastPipDesired || pipChat.isOpen()) {
+    if (lastPipDesired || pipActiveOrOpening) {
       pipGeneration++;
       lastPipDesired = false;
       pipChat.close();
     }
 
-    const allowed = wantWindow;
-    if (allowed) {
-      if (!lastPopoutDesired) {
-        lastPopoutDesired = true;
-        popout.open();
-        pushExtensionChatMessages();
+    if (wantWindow) {
+      if (mountOptions?.reclaim) {
+        void popout.claim().then(rememberPopoutIfAccepted);
+        syncBridgePopoutIfNeeded(settings);
+        return;
+      }
+      if (!lastPopoutDesired || !popout.isOpen()) {
+        void Promise.resolve(popout.open()).then(rememberPopoutIfAccepted);
+        syncBridgePopoutIfNeeded(settings);
         return;
       }
       if (mountOptions?.syncUrl) {
         popout.sync();
+        syncBridgePopoutIfNeeded(settings);
       }
-      pushExtensionChatMessages();
       return;
     }
-    if (lastPopoutDesired || popout.isOpen()) {
+    if (
+      shouldShow &&
+      !wantPip &&
+      target === null &&
+      options.site === "youtube-live"
+    ) {
+      void ensureYouTubeChatFrameSrc(location.href).then((resolved) => {
+        const latest = getSettings();
+        // Retry only once a target exists; a cached frame URL resolves
+        // immediately and would otherwise loop forever.
+        // 宛先が得られたときだけ再試行する。キャッシュ済みの枠 URL はすぐ解決し、
+        // そのままだと無限に繰り返す。
+        if (
+          disposed ||
+          !resolved ||
+          latest.displayMode !== "popout" ||
+          resolveActivePopoutTarget(latest) === null
+        ) {
+          return;
+        }
+        syncPopout(true, { ...mountOptions, syncUrl: true });
+      });
+    }
+    if (lastPopoutDesired || (popout.isOpen() && canClaimPopout())) {
       lastPopoutDesired = false;
       popout.close();
     }
   }
 
+  /**
+   * Panel menu "Pin on top". Document PiP needs this click's user activation,
+   * so the window is requested before any await. Popout mode then keeps it.
+   * パネルメニューの「前面に固定」。Document PiP にはクリックによるユーザー操作が必要なため、
+   * await より前に窓を要求する。その後は別窓モードが保持する。
+   */
+  function pinChatOnTop(): void {
+    if (disposed) {
+      return;
+    }
+    pipFellBack = false;
+    pipClosedByUser = false;
+    pipPinPending = true;
+    const current = getSettings();
+    pipChat.setBridgeMode?.({
+      active: activeBridgeSource !== null,
+      headerLabel: activeBridgeSource?.label ?? undefined,
+      readOnly: activeBridgeSource !== null,
+    });
+    pipChat.setNativeChatUrl(resolvePipNativeUrl(current));
+    lastPipDesired = true;
+    const requested = ++pipGeneration;
+    void pipChat.open().then((opened) => {
+      if (disposed || requested !== pipGeneration || !lastPipDesired) {
+        return;
+      }
+      if (!opened) {
+        lastPipDesired = false;
+        pipFellBack = true;
+        const target = resolveActivePopoutTarget(getSettings());
+        if (target && canClaimPopout()) {
+          void Promise.resolve(popout.open()).then(rememberPopoutIfAccepted);
+          syncBridgePopoutIfNeeded(getSettings());
+        } else {
+          pipPinPending = false;
+          returnToPanelFromPopout(true);
+        }
+        return;
+      }
+      const latest = getSettings();
+      pipChat.setMessages(
+        resolveMixedLiveMessages(latest).slice(-latest.filter.maxVisible),
+      );
+    });
+    void saveSettings({ displayMode: "popout" }).catch((error: unknown) => {
+      console.warn("[fce] pinChatOnTop saveSettings failed", error);
+    });
+  }
+
+  /**
+   * Twitch reads chat from the page column, so the list is empty while it is
+   * collapsed; the official iframe keeps PiP filled. Replay iframes only
+   * follow the video when they sit in the watch page, so replays keep the list.
+   * Twitch はページ側の欄から読むので、畳むと一覧が空になる。公式 iframe なら埋まる。
+   * リプレイ iframe は視聴ページ内でしか動画に追従しないので、一覧のままにする。
+   */
+  function resolvePipNativeUrl(next: ExtensionSettings): string | null {
+    const url = resolvePanelNativeUrlForMount(next);
+    if (url !== rejectedPipNativeUrl) rejectedPipNativeUrl = null;
+    if (!url) {
+      return null;
+    }
+    return url === rejectedPipNativeUrl ||
+      /^\/live_chat_replay(?:\/|$)/.test(new URL(url).pathname)
+      ? null
+      : url;
+  }
+
+  function returnToPanelFromPopout(force = false): void {
+    if (force || getSettings().displayMode === "popout") {
+      void saveSettings({ displayMode: "panel" }).catch((error: unknown) => {
+        console.warn("[fce] returnToPanelFromPopout failed", error);
+      });
+    }
+  }
+
+  function rememberPopoutIfAccepted(accepted: unknown): void {
+    if (accepted === false || disposed) {
+      return;
+    }
+    if (getSettings().displayMode !== "popout") {
+      return;
+    }
+    lastPopoutDesired = true;
+  }
+
+  function videoPanelAllowed(next: ExtensionSettings): boolean {
+    // A rejected or missing official URL leaves the extension's own list.
+    // 公式 URL が拒否・未取得なら自前リストなので、ページ側と重ならない。
+    return shouldMountVideoPanel({
+      useNativeChat: resolvePanelNativeUrlForMount(next) !== null,
+      fullscreen: Boolean(document.fullscreenElement),
+      pageChatOpen: isPageChatColumnOpen(document),
+    });
+  }
+
+  function syncOfficialOverlay(): void {
+    if (disposed) {
+      return;
+    }
+    const next = getSettings();
+    const show = routeDisplay(next).showPanel && videoPanelAllowed(next);
+    if (show === lastVideoPanelMounted) {
+      return;
+    }
+    ensureRuntimeMounted(
+      next,
+      currentMountParent ?? options.resolveMountParent(),
+    );
+  }
+
+  function buildBridgeState(): OverlayBridgeState {
+    if (!bridgeSupported || !liveDelayBuffer) {
+      return {
+        supported: false,
+        sources: [],
+        activeSource: null,
+        delaySec: 0,
+        suspendedReason: null,
+        calibration: {
+          status: "idle",
+          selectedMessageId: null,
+          suggestedDelaySec: null,
+        },
+      };
+    }
+    const bufferState = liveDelayBuffer.getState();
+    const calibration = liveDelayBuffer.getCalibration();
+    return {
+      supported: true,
+      sources: bridgeSources,
+      activeSource: activeBridgeSource
+        ? {
+            tabId: activeBridgeSource.tabId,
+            site: activeBridgeSource.site,
+            channelLogin: activeBridgeSource.channelLogin,
+            label: activeBridgeSource.label,
+          }
+        : null,
+      delaySec: liveDelayBuffer.getDelaySec(),
+      suspendedReason:
+        bufferState.status === "suspended" ? bufferState.reason : null,
+      calibration: {
+        status: calibration.status,
+        selectedMessageId:
+          calibration.status === "suggested" ? calibration.messageId : null,
+        suggestedDelaySec:
+          calibration.status === "suggested"
+            ? calibration.suggestedDelaySec
+            : null,
+      },
+    };
+  }
+
+  function syncPanelBridgeState(): void {
+    panel.setBridgeState(buildBridgeState());
+  }
+
+  function stopBridgeWatching(): void {
+    if (bridgeTickTimer !== null) {
+      globalThis.clearInterval(bridgeTickTimer);
+      bridgeTickTimer = null;
+    }
+    stopInterruptWatch?.();
+    stopInterruptWatch = null;
+  }
+
+  function suspendBridge(reason: LivePlaybackInterruption): void {
+    if (disposed || !activeBridgeSource || !liveDelayBuffer) {
+      return;
+    }
+    const remoteSite = activeBridgeSource.site;
+    remoteOrderById.clear();
+    pendingDanmakuRemote = [];
+    clearRecentDanmakuForSite(remoteSite);
+    danmaku.clearSite?.(remoteSite);
+    liveDelayBuffer.suspend(reason);
+    syncPanelBridgeState();
+    publish();
+  }
+
+  function suspendBridgeIfInterrupted(): boolean {
+    const interruption = getLivePlaybackInterruption();
+    if (interruption === null) {
+      return false;
+    }
+    suspendBridge(interruption);
+    return true;
+  }
+
+  function startBridgeWatching(): void {
+    stopBridgeWatching();
+    bridgeTickTimer = globalThis.setInterval(() => {
+      if (disposed || !activeBridgeSource || !liveDelayBuffer) {
+        return;
+      }
+      if (tickBufferWithDanmaku(Date.now())) {
+        publish();
+      }
+    }, 250);
+    stopInterruptWatch = watchLivePlaybackInterruptions(suspendBridge);
+  }
+
+  function syncPipBridgeState(current: ExtensionSettings): void {
+    if (!(lastPipDesired || pipChat.isOpen())) {
+      return;
+    }
+    pipChat.setBridgeMode?.({
+      active: activeBridgeSource !== null,
+      headerLabel: activeBridgeSource?.label ?? undefined,
+      readOnly: activeBridgeSource !== null,
+    });
+    pipChat.setNativeChatUrl(resolvePipNativeUrl(current));
+  }
+
+  function detachBridgeSource(opts?: {
+    alreadyUnsubscribed?: boolean;
+    refreshSources?: boolean;
+    skipMountSync?: boolean;
+  }): void {
+    bridgeSelectionSeq += 1;
+    stopBridgeWatching();
+    const previousRemoteSite = activeBridgeSource?.site ?? null;
+    const wasActive = activeBridgeSource !== null;
+    activeBridgeSource = null;
+    remoteOrderById.clear();
+    pendingDanmakuRemote = [];
+    if (previousRemoteSite) {
+      clearRecentDanmakuForSite(previousRemoteSite);
+      danmaku.clearSite?.(previousRemoteSite);
+    }
+    liveDelayBuffer?.reset();
+    if (!opts?.alreadyUnsubscribed) {
+      void bridgeSubscriber?.unsubscribe();
+    }
+    if (disposed) {
+      return;
+    }
+    danmaku.setMixedMode?.(false);
+    syncPanelBridgeState();
+    syncPipBridgeState(getSettings());
+    if (!opts?.skipMountSync && wasActive) {
+      ensureRuntimeMounted(
+        getSettings(),
+        currentMountParent ?? options.resolveMountParent(),
+        { syncPopoutUrl: true },
+      );
+      publish();
+    }
+    if (opts?.refreshSources) {
+      void refreshBridgeSources();
+    }
+  }
+
+  async function refreshBridgeSources(): Promise<void> {
+    if (disposed || !bridgeSubscriber) {
+      return;
+    }
+    const sources = await bridgeSubscriber.listSources();
+    if (disposed) {
+      return;
+    }
+    bridgeSources = sources.map((source) => ({
+      tabId: source.tabId,
+      site: source.site,
+      channelLogin: source.channelLogin,
+      label: source.label,
+    }));
+    syncPanelBridgeState();
+  }
+
+  async function selectBridgeSource(sourceTabId: number | null): Promise<void> {
+    if (disposed || !bridgeSubscriber || !liveDelayBuffer) {
+      return;
+    }
+    const seq = ++bridgeSelectionSeq;
+    if (sourceTabId === null) {
+      detachBridgeSource();
+      return;
+    }
+    if (liveDelayBuffer.cancelCalibration()) {
+      syncPanelBridgeState();
+    }
+    const source = await bridgeSubscriber.subscribe(sourceTabId);
+    if (disposed || seq !== bridgeSelectionSeq) {
+      return;
+    }
+    if (!source) {
+      detachBridgeSource({ alreadyUnsubscribed: true, refreshSources: true });
+      return;
+    }
+    clearRecentDanmakuForSite(source.site);
+    danmaku.clearSite?.(source.site);
+    activeBridgeSource = source;
+    remoteOrderById.clear();
+    pendingDanmakuRemote = [];
+    liveDelayBuffer.reset();
+    liveDelayBuffer.setDelaySec(0);
+    startBridgeWatching();
+    syncPanelBridgeState();
+    const current = getSettings();
+    syncPipBridgeState(current);
+    ensureRuntimeMounted(
+      current,
+      currentMountParent ?? options.resolveMountParent(),
+      { syncPopoutUrl: true },
+    );
+    publish();
+  }
+
   function resolvePanelNativeUrlForMount(
     next: ExtensionSettings,
   ): string | null {
-    // Comments use DOM portal, not an iframe URL (ISS-026).
-    // 通常コメントは iframe URL ではなく DOM ポータル。
-    if (!next.panel.useNativeChat || options.site === "youtube-comments") {
+    if (activeBridgeSource !== null) {
+      return null;
+    }
+    if (!next.panel.useNativeChat) {
       return null;
     }
     const url = resolveNativePanelChatUrl(location.href);
@@ -650,26 +1647,18 @@ function startActiveRuntime(
     return url;
   }
 
-  function syncCommentsPortalSurface(next: ExtensionSettings): void {
-    if (!commentsPortal) {
-      return;
-    }
-    const wantPortal = wantsCommentsPortal(next);
-    panel.setNativePortalActive(wantPortal);
-    commentsPortal.sync(wantPortal);
-    ensureCommentsAdapterRunning(!wantPortal);
-  }
-
   function ensureRuntimeMounted(
     next: ExtensionSettings,
     parent: HTMLElement,
     mountOptions?: { syncPopoutUrl?: boolean },
   ): void {
-    const route = routeDisplay(options.site, next);
+    const route = routeDisplay(next);
     if (!next.enabled) {
-      commentsPortal?.sync(false);
-      panel.setNativePortalActive(false);
-      ensureCommentsAdapterRunning(false);
+      lastVideoPanelMounted = false;
+      if (activeBridgeSource !== null) {
+        detachBridgeSource({ skipMountSync: true });
+      }
+      ensureAdapterRunning(false);
       if (panelMounted) {
         panel.unmount();
         panelMounted = false;
@@ -678,44 +1667,35 @@ function startActiveRuntime(
         danmaku.unmount();
         danmakuMounted = false;
       }
-      lastShowDanmaku = false;
       syncPopout(false);
       return;
     }
-    if (route.showPanel) {
-      if (!panelMounted) {
-        panel.mount(parent);
-        panelMounted = true;
-      }
+    currentMountParent = parent;
+    const showPanel = route.showPanel && videoPanelAllowed(next);
+    lastVideoPanelMounted = showPanel;
+    if (showPanel) {
+      panel.mount(parent);
+      panelMounted = true;
       panel.applySettings(next);
       panel.setNativeChatUrl(resolvePanelNativeUrlForMount(next));
-      syncCommentsPortalSurface(next);
+      syncPanelBridgeState();
     } else if (panelMounted) {
-      commentsPortal?.sync(false);
-      panel.setNativePortalActive(false);
-      ensureCommentsAdapterRunning(true);
       panel.unmount();
       panelMounted = false;
     }
     if (route.showDanmaku) {
-      const becomingVisible = !danmakuMounted || !lastShowDanmaku;
-      if (!danmakuMounted) {
-        danmaku.mount(parent);
-        danmakuMounted = true;
-      }
+      danmaku.mount(parent);
+      danmakuMounted = true;
       danmaku.applySettings(next);
-      if (becomingVisible) {
-        const filtered = applyNgFilter(messages, next.filter).visible;
-        danmaku.flush(filtered);
-      }
-      lastShowDanmaku = true;
     } else if (danmakuMounted) {
       danmaku.unmount();
       danmakuMounted = false;
-      lastShowDanmaku = false;
-    } else {
-      lastShowDanmaku = false;
     }
+    // Mount views before starting the adapter so synchronous initial rows deliver directly,
+    // without replaying previously accumulated history when toggling into danmaku mode.
+    // アダプタからの同期通知を受け取れるよう先に View をマウントする。弾幕に切り替えたときに過去のコメントをまとめて流さない。
+    ensureAdapterRunning(shouldRunAdapter(next));
+    scheduleMountRetryIfNeeded();
     syncPopout(route.showPopout, {
       syncUrl: mountOptions?.syncPopoutUrl === true,
     });
@@ -734,6 +1714,16 @@ function startActiveRuntime(
     // Storage notifications are authoritative; an older write reply must not
     // replace a newer settings snapshot from another extension page.
   }
+}
+
+function hasTransientUserActivation(): boolean {
+  if (typeof navigator === "undefined") {
+    return true;
+  }
+  const activation = (
+    navigator as Navigator & { userActivation?: { isActive?: boolean } }
+  ).userActivation;
+  return activation ? Boolean(activation.isActive) : true;
 }
 
 function samePanelPosition(

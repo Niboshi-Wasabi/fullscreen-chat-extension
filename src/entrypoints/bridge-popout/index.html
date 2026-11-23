@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fullscreen Chat</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body class="fce-bridge-popout">
+    <header class="fce-popout-header">
+      <div class="fce-popout-title-wrap">
+        <span id="popoutTitle" class="fce-popout-title">Fullscreen Chat</span>
+        <span id="popoutPeer" class="fce-popout-peer" hidden></span>
+      </div>
+      <div class="fce-popout-meta">
+        <span id="popoutReadOnly" class="fce-popout-badge">Read-only</span>
+        <span id="popoutDelay" class="fce-popout-delay">+0s</span>
+      </div>
+    </header>
+    <div id="popoutBanner" class="fce-popout-banner" hidden></div>
+    <main
+      id="popoutList"
+      class="fce-popout-list"
+      role="log"
+      aria-live="polite"
+    ></main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

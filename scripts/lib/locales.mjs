@@ -8,7 +8,7 @@ function placeholders(text) {
     .sort();
 }
 
-/** Read catalogs under root and return errors plus fallback counts / 辞書を変更せず整合性と例外を検査。 */
+/** Read catalogs under root and return errors plus fallback counts / カタログの整合性を検査し、エラーとフォールバック件数を返す。 */
 export function checkLocales(root) {
   const errors = [];
   const directory = path.join(root, "src/shared/i18n/locales");

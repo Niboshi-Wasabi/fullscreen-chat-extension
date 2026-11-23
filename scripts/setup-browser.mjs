@@ -2,7 +2,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { isMain, report } from "./lib/check-utils.mjs";
 
-/** Keep the pinned Playwright browser inside this project / 固定版ブラウザを専用領域へ準備する。 */
+/** Keep the pinned Playwright browser inside this project / 固定版のブラウザをプロジェクト内の専用領域に配置する。 */
 export function browserEnvironment(root) {
   return {
     ...process.env,

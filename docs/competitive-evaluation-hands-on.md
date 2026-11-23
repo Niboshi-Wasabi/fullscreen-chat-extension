@@ -14,8 +14,8 @@
 | 主ブラウザ | Google Chrome **157.0.8103.52**（評価用分離プロファイル） |
 | 副ブラウザ | Firefox 差分は未実施（時間優先。YLCFS / Flusher / Yochatto はストア併載を調査段階で確認済み） |
 | デュアルモニタ | **あり（3 画面）** Primary 1920×1080 / 縦 1080×1920 / 下 1536×960 |
-| プロファイル | `.tmp-extensions/chrome-profile-cdp`（CDP `Extensions.loadUnpacked` で必試6を読込） |
-| 制約 | 公式 Chrome は `--load-extension` 不可のため CDP 読込。`document.fullscreenElement` はユーザージェスチャ不足で自動化不可 → 真のプレイヤー全画面パスは制限付き |
+| プロファイル | `.tmp-extensions/chrome-profile-cdp`（CDP `Extensions.loadUnpacked` で必試6を読み込み） |
+| 制約 | 公式 Chrome は `--load-extension` 不可のため CDP 読込。`document.fullscreenElement` は必要なユーザー操作を自動化できなかった → 真のプレーヤー全画面パスは制限付き |
 
 ### テスト用コンテンツ（URL）
 
@@ -47,7 +47,7 @@
 
 補足:
 
-- **partial（YLCFS）**: ポップアップ／設定は確認。プレイヤー全画面＋ shadow ホスト（`shadow-root-live-chat`）は自動化で FS 不可のため未観測。ネイティブチャット借用設計はバンドル上確認。
+- **partial（YLCFS）**: ポップアップ／設定は確認。プレーヤー全画面＋ shadow ホスト（`shadow-root-live-chat`）は自動化で FS 不可のため未観測。ネイティブチャット借用設計はバンドル上確認。
 - **partial（Flusher）**: オプションで Banned Words・タイムシフト・非依存モードを確認。当該ライブ DOM 上に弾幕レイヤは未観測（SDO 同居の可能性）。
 - **partial（Comment Viewer）**: content script／ポップアップ確認。オーバーレイ容器は未出現（トグル／初回表示条件の追い込み不足）。
 - **partial（Yochatto 投稿）**: チャット入力欄は存在。未ログインのため実送信は未実施。

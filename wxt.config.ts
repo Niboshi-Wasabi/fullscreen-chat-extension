@@ -35,7 +35,7 @@ export default defineConfig({
       "*://www.twitch.tv/*",
       "*://twitch.tv/*",
       // Third-party Twitch emote catalogs (BTTV / FFZ / 7TV)
-      // Twitch 第三者エモートカタログ
+      // Twitch 外部サービスのエモート一覧
       "*://api.betterttv.net/*",
       "*://cdn.betterttv.net/*",
       "*://api.frankerfacez.com/*",
@@ -70,12 +70,13 @@ export default defineConfig({
         suggested_key: { default: "Alt+Shift+D" },
         description: "Toggle danmaku (live chat only)",
       },
+      // No default shortcuts below — bind in the browser's shortcut settings.
+      // Alt+Shift+P also fires Chrome's own tab-group shortcut.
+      // 以下の操作には既定のキー割り当てがない。ブラウザのショートカット設定で割り当てる。
+      // Alt+Shift+P は Chrome 自身のタブグループ操作も実行する。
       "open-popout": {
-        suggested_key: { default: "Alt+Shift+P" },
         description: "Open or focus popout window",
       },
-      // No default shortcut — bind in chrome://extensions/shortcuts if needed.
-      // デフォルト無し。必要なら chrome://extensions/shortcuts で割当。
       "toggle-compose-focus": {
         description: "Focus compose input",
       },

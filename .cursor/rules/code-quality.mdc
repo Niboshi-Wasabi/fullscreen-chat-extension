@@ -7,4 +7,4 @@ alwaysApply: true
 
 最初に [AGENTS.md](../../AGENTS.md) と [docs/quality/code-principles.md](../../docs/quality/code-principles.md) を読む。
 構造・命名・日英コメントは共通原則に従う。
-実装と独立レビューの役割は依頼から判断し、製品名だけで決めない。
+実装と独立レビューの担当は、依頼された作業内容に基づいて判断する。

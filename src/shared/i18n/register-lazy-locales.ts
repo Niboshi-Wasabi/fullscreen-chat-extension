@@ -13,7 +13,7 @@ const localeLoaders = import.meta.glob<{ default: Partial<MessageCatalog> }>([
 /**
  * Register lazy locale JSON loaders for extension pages (popup / options).
  * Not imported from content scripts — keeps content.js free of locale chunks.
- * 拡張ページ用の遅延ロケール読込を登録。content からは import しない。
+ * 拡張ページ用の翻訳カタログを必要なときに読み込む処理を登録する。content からは import しない。
  */
 export function registerLazyLocales(): void {
   registerExtraLocaleLoader(async (locale: AppLocale) => {

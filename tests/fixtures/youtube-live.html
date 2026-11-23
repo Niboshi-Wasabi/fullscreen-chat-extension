@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Synthetic YouTube Live fixture</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: #f0f2f4;
+      }
+      #movie_player {
+        position: relative;
+        width: 100%;
+        height: 600px;
+        background: #111;
+        color: white;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+      }
+      .ytp-right-controls {
+        position: absolute;
+        right: 16px;
+        bottom: 8px;
+        display: flex;
+      }
+      button {
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="movie_player" class="html5-video-player ytp-live">
+        <span class="badge-style-type-live-now">LIVE</span>
+        <video aria-label="Synthetic empty video"></video>
+        <div class="ytp-right-controls">
+          <button
+            id="fixture-fullscreen"
+            class="ytp-fullscreen-button"
+            aria-label="Enter fullscreen"
+          >
+            Fullscreen
+          </button>
+        </div>
+      </div>
+      <ytd-live-chat-frame id="chat"></ytd-live-chat-frame>
+    </main>
+    <script>
+      document
+        .querySelector("#fixture-fullscreen")
+        .addEventListener("click", () =>
+          document.querySelector("#movie_player").requestFullscreen(),
+        );
+    </script>
+  </body>
+</html>

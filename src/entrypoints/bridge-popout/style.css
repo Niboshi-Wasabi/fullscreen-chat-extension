@@ -1,0 +1,166 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: #121216;
+  color: #f5f5f5;
+  font:
+    13px/1.45 "Segoe UI",
+    Meiryo,
+    sans-serif;
+}
+
+.fce-bridge-popout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+  width: 100%;
+  height: 100%;
+}
+
+.fce-popout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(109, 40, 217, 0.24);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.fce-popout-title-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.fce-popout-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.fce-popout-peer {
+  display: block;
+  max-width: 100%;
+  font-size: 11px;
+  color: #ddd6fe;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fce-popout-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fce-popout-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #6d28d9;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fce-popout-delay {
+  font-weight: 700;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fce-popout-banner {
+  min-width: 0;
+  padding: 8px 12px;
+  background: rgba(245, 158, 11, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.fce-popout-banner[hidden],
+.fce-popout-peer[hidden] {
+  display: none;
+}
+
+.fce-popout-list {
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fce-popout-row {
+  min-width: 0;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.fce-popout-site-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+  margin-right: 5px;
+  vertical-align: -0.22em;
+  flex-shrink: 0;
+}
+
+.fce-popout-site-badge svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fce-popout-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: -0.15em;
+  margin-right: 4px;
+}
+
+.fce-popout-badge-icon,
+.fce-popout-emoji {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.15em;
+  margin-inline: 0.1em;
+  object-fit: contain;
+}
+
+.fce-popout-author {
+  font-weight: 600;
+  margin-right: 6px;
+  color: #9ecbff;
+}
+
+.fce-popout-row[data-site="twitch"] .fce-popout-author {
+  color: #bf94ff;
+}

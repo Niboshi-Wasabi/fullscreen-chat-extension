@@ -26,11 +26,17 @@
 | ローカル検証基盤の実装             | [Phase 3計画](plans/2026-11-14-verification-foundation.md)                                                                                                                                                | ゲート・証跡の更新時                                   |
 | CI・セキュリティ基盤の実装         | [Phase 4計画](plans/2026-11-14-ci-quality-gates.md)                                                                                                                                                       | ローカル検証とリモート有効化の区別を更新               |
 | ブラウザ実行・観測基盤             | [Phase 5計画](plans/2026-11-14-browser-verification.md)、[ブラウザ手順](operations/browser-verification.md)                                                                                               | テスト範囲・計測・証跡の更新時                         |
-| 全体レビュー指摘の修正             | [修正計画](plans/2026-11-15-review-fixes.md)、[R01–R21の対応記録](quality/review-fixes-2026-11-15.md)                                                                                                     | 各指摘の実装・自己確認・独立レビュー結果の更新時       |
+| 実サイト実機レビュー・証跡         | [接続案](plans/2026-11-18-firefox-harness-integration.md)、[結果スキーマ](quality/real-site-result.schema.json)、[項目ID](quality/real-site-item-ids.json)、Skill [real-site-review](../.agents/skills/real-site-review/SKILL.md) | 実機結果形式・Skill・検査コマンドの更新時              |
+| Firefox常設合成回帰                | [接続案 第2段階](plans/2026-11-18-firefox-harness-integration.md)、`pnpm.cmd test:e2e:firefox`                                                                                                                                     | Firefox BiDi 合成コマンド・範囲の更新時                |
+| 実サイト発見→再発防止              | [regression-from-live.md](quality/regression-from-live.md)、[regression-links.json](quality/regression-links.json)、`pnpm.cmd check:regression-links`                                                                             | リンク台帳・匿名化手順・両面確認の更新時               |
+| 全体レビュー指摘の修正             | [修正計画](plans/2026-11-15-review-fixes.md)、[R01–R21の対応記録](quality/review-fixes-2026-11-15.md)、[2026-11-16リファクタリング計画](plans/2026-11-16-review-refactoring.md)、[2026-11-19全体修正計画](plans/2026-11-19-project-review-fixes.md)                           | 各指摘の実装・自己確認・独立レビュー結果の更新時       |
+| 通常YT動画対応の廃止               | [通常YTコメント廃止計画](plans/2026-11-16-remove-youtube-comments.md)                                                                                                                                     | 通常YT動画廃止の設計・文書・検証更新時                 |
+| 別窓の閉じ方・前面固定・既定キー   | [見直し計画](plans/2026-11-18-popout-close-and-pin.md)、[ISS-027〜033 独立レビュー](quality/iss-027-033-review-2026-11-19.md)                                                                             | ISS-030〜033 の実装・検証更新時                        |
 | Firefoxでの検証結果・修正          | [2026-11-15検証記録](quality/firefox-verification-2026-11-15.md)、[復元・終了処理の修正計画](plans/2026-11-15-firefox-lifecycle-fixes.md)、[独立レビュー](quality/firefox-lifecycle-review-2026-11-15.md) | 実施範囲・警告・未検証を更新                           |
 | Twitch手動報告と再発防止           | [計画](plans/2026-11-15-twitch-live-fixes.md)、[検証記録](quality/twitch-verification-2026-11-15.md)、[独立レビュー](quality/twitch-review-2026-11-15.md)                                                 | 実サイトのユーザー確認と合成再現を分けて更新           |
 | 従来の実装履歴                     | [既存実装計画](implementation-plan.md)                                                                                                                                                                    | 過去の記録。新計画の代わりにしない                     |
 | 開発環境                           | [開発手順](operations/development.md)                                                                                                                                                                     | 準備・実行方式の変更                                   |
+| デバッグ・実機読み込み手順         | [デバッグ手段](operations/debugging.md)                                                                                                                                                                   | 手動ロード・DevTools・切り分け手順の更新               |
 | CI実行・保護設定・セキュリティ検査 | [CI手順](operations/ci.md)                                                                                                                                                                                | workflow・検査・リポジトリ設定の変更                   |
 | 権限・通信・信頼境界               | [セキュリティ](operations/security.md)                                                                                                                                                                    | 外部入力・API・権限変更                                |
 | 実際のmanifest                     | [WXT設定](../wxt.config.ts)、ビルド出力                                                                                                                                                                   | 設定変更。出力も確認                                   |
@@ -40,6 +46,8 @@
 型定義はコードに置き、文書は意味・理由・所在を示す。文書と実装が矛盾する場合、実装への追認や要求の書き換えで解消せず、問題台帳で判断を求める。
 
 文書内では「確定」「提案」「未決定」「実装済み」「検証済み」を区別する。過去文書の「完了」は当時の申告であり、今回の実機検証結果ではない。
+
+日本語文書と UI 文言を変更するときは、[日本語の校閲と差分検査](operations/japanese-proofreading.md)を参照してください。導入時の判断と検証手順は[日本語校閲ハーネスの導入計画](plans/2026-11-23-japanese-proofreading.md)に記録しています。
 
 ## 外部資料
 

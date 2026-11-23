@@ -6,23 +6,24 @@ description: この拡張の変更から回帰検証を選び、実行結果と�
 # 回帰検証
 
 ## 使用条件
-変更後の検証、再現確認、公開前の検証範囲選定。検証依頼は実投稿・公開の許可ではない。
+変更後の検証、不具合の再現確認、公開前に確認する範囲の選定に使う。検証依頼は実投稿・公開の許可ではない。
 
 ## 参照資料
-[品質基準](../../../docs/quality/standards.md)、[開発環境](../../../docs/operations/development.md)、[公開手順](../../../docs/operations/release.md)、[問題台帳](../../../docs/quality/issues.md)、対象の仕様・コード。
+[品質基準](../../../docs/quality/standards.md)、[開発環境](../../../docs/operations/development.md)、[公開手順](../../../docs/operations/release.md)、[問題台帳](../../../docs/quality/issues.md)、[実サイト→再発防止](../../../docs/quality/regression-from-live.md)、[regression-links.json](../../../docs/quality/regression-links.json)、対象の仕様・コード。
 
 ## 入力
-対象差分/ファイル、受け入れ条件、環境、以前の失敗、利用可能なツール。
+対象差分/ファイル、受け入れ条件、環境、以前の失敗、利用可能なツール。実サイト由来の ISS なら checklist ID。
 
 ## 手順
 1. package.json等で利用可能なコマンドを確認する。未導入verifyを推測実行しない。
 2. 型・ビルド・ロジック・結合・ブラウザ・手動確認を影響に応じ選び、不要な反復を避ける。
 3. 通常コメントの弾幕禁止、NG境界、シーク、解除、設定不正値など関連する回帰を確認する。
-4. 環境、コマンド、終了コード、証跡と、成功/失敗/未実行/実行不能/対象外を記録する。
-5. 保証範囲と未検証を説明し、計画や台帳へ返す。
+4. 実サイト由来の修正なら [regression-from-live.md](../../../docs/quality/regression-from-live.md) でリンク有無を確認する。未登録なら匿名 fixture・テスト・`regression-links.json` を追加し `pnpm.cmd check:regression-links` を通す。`liveRecheck` が pending/blocked なら合成成功だけでは閉じない。
+5. 環境、コマンド、終了コード、証跡と、成功/失敗/未実行/実行不能/対象外を記録する。
+6. 保証範囲と未検証を説明し、計画や台帳へ返す。
 
 ## 制約
-多言語検査は明示的なフォールバック例外も照合する。例外を機械的に追加して失敗を隠さない。検証の現在の導入状態は品質基準を参照する。ビルドを実機成功、ChromiumをFirefox、静的チェックをSkills実機互換性に読み替えない。テストのための仕様変更、失敗隠蔽、無断実投稿を行わない。
+多言語検査は明示的なフォールバック例外も照合する。例外を機械的に追加して失敗を隠さない。検証の現在の導入状態は品質基準を参照する。ビルドを実機成功、ChromiumをFirefox、静的チェックをSkills実機互換性に読み替えない。Firefox 製品経路の合成確認は `pnpm.cmd test:e2e:firefox`（通常 verify 外）。実サイト確認が必要なときは Skill [real-site-review](../real-site-review/SKILL.md) と `check:real-site` を使い、Chrome / Firefox 合成成功で代用しない。テストのための仕様変更、失敗隠蔽、無断実投稿を行わない。
 
 ## 完了条件
 適用する検証と未実施理由を説明し、失敗・未検証を可視化。必須条件不足なら成功とせず、次の検証を示す。

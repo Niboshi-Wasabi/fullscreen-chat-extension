@@ -1,8 +1,5 @@
 {
-  "permissions": [
-    "storage",
-    "windows"
-  ],
+  "permissions": ["storage", "windows"],
   "host_permissions": [
     "*://www.youtube.com/*",
     "*://youtube.com/*",
@@ -31,7 +28,16 @@
     "fonts/MaterialSymbolsOutlined.woff2",
     "fonts/MaterialSymbols-LICENSE.txt"
   ],
-  "content_js": [
-    "content-scripts/content.js"
-  ]
+  "content_js": ["content-scripts/content.js"],
+  "commands": {
+    "maxSuggestedKeys": 4,
+    "unmapped": ["open-popout", "toggle-compose-focus"],
+    "names": [
+      "toggle-enabled",
+      "cycle-display-mode",
+      "toggle-danmaku",
+      "open-popout",
+      "toggle-compose-focus"
+    ]
+  }
 }

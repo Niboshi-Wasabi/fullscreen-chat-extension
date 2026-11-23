@@ -15,8 +15,9 @@ export function createRuntimeController(
       queue = queue
         .then(async () => {
           if (stopped || requested !== generation) return;
-          dispose?.();
+          const prev = dispose;
           dispose = null;
+          prev?.();
           const current = new AbortController();
           activation = current;
           const next = await start(current.signal);
@@ -30,8 +31,9 @@ export function createRuntimeController(
       stopped = true;
       generation++;
       activation?.abort();
-      dispose?.();
+      const prev = dispose;
       dispose = null;
+      prev?.();
     },
   };
 }

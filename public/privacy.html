@@ -63,7 +63,7 @@
     <main>
       <header>
         <h1>Privacy Policy / プライバシーポリシー</h1>
-        <p class="meta">Fullscreen Chat Extension · Last updated: 2026-11-15</p>
+        <p class="meta">Fullscreen Chat Extension · Last updated: 2026-11-23</p>
       </header>
 
       <section lang="en">
@@ -76,13 +76,24 @@
         <ul>
           <li>
             Settings and NG lists are stored only in your browser
-            (<code>storage.local</code> / session helpers).
+            (<code>storage.local</code>). Temporary session metadata for popout
+            window management and mixed-chat tab connections (tab IDs, site
+            type, stream identifier, and display label) may be held in
+            <code>storage.session</code> while the browser session is active;
+            chat messages, author names, and viewer identifiers are never
+            written to storage.
+          </li>
+          <li>
+            When you use mixed chat between open YouTube Live and Twitch Live
+            tabs, comments are relayed strictly inside your browser via
+            extension runtime messaging for read-only display and are never sent
+            to the developer or any third-party server.
           </li>
           <li>
             Network traffic is limited to YouTube and Twitch pages you already
             visit, plus optional public BTTV / FFZ / 7TV emote APIs when that
-            setting is on. There is no analytics SDK and no developer telemetry
-            endpoint.
+            setting is on (enabled by default; can be turned off in Options).
+            There is no analytics SDK and no developer telemetry endpoint.
           </li>
           <li>
             Removing the extension deletes its storage according to your
@@ -98,24 +109,33 @@
       <section lang="ja">
         <h2>日本語</h2>
         <p>
-          本拡張機能は、視聴履歴・チャット／コメント本文・Cookie・アカウント情報を
-          <strong>開発者へ収集・送信・販売しません</strong>。
+          本拡張機能は、視聴履歴、チャットやコメントの本文、Cookie、アカウント情報を
+          <strong>収集・販売しません。開発者に送信することもありません</strong>。
         </p>
         <ul>
           <li>
-            設定と NG リストは端末内のブラウザ拡張ストレージ
-            （<code>storage.local</code> 等）のみに保存します。
+            設定と NG リストは、端末内のブラウザ拡張機能用ストレージ
+            （<code>storage.local</code>）にのみ保存します。
+            別窓の管理や混合チャットの接続に必要なタブ ID、サイト種別、配信キー、表示ラベルは、
+            ブラウザのセッション中に限り <code>storage.session</code> に保持する場合があります。
+            チャット本文、投稿者名、視聴者識別子はストレージに保存しません。
           </li>
           <li>
-            通信は利用者が開いた YouTube / Twitch への既存アクセス、および（設定オン時のみ）
-            BTTV / FFZ / 7TV の公開エモート API に限ります。
+            開いている YouTube ライブと Twitch ライブのタブで混合チャットを使う場合、
+            拡張機能は読み取り専用の表示に必要なコメントのデータをブラウザ内でのみ中継します。
+            このデータを開発者や外部サーバーに送信することはありません。
+          </li>
+          <li>
+            通信先は、利用者が開いた YouTube と Twitch のページに限ります。
+            エモートの設定を有効にしている場合は、BTTV、FFZ、7TV の公開エモート API にも接続します。
+            エモートの設定は初期状態で有効です。設定画面で無効にできます。
             独自の解析・広告・テレメトリ用エンドポイントはありません。
           </li>
           <li>
-            拡張を削除すると、ブラウザの方針に従いストレージも削除されます。
+            拡張機能を削除すると、ブラウザの規則に従って保存データも削除されます。
           </li>
           <li>
-            連絡先: 公開後はストアのサポート欄、または GitHub Issues。
+            お問い合わせは GitHub Issues、公開後はストアのサポート欄でも受け付けます。
           </li>
         </ul>
       </section>
@@ -129,10 +149,10 @@
           changes may break features without notice.
         </p>
         <p lang="ja">
-          弾幕機能は個人／コミュニティ向けの非営利利用を想定しています。
+          弾幕機能は、個人やコミュニティでの非営利利用を想定しています。
           本ソフトウェアは非公式であり、YouTube・Twitch・株式会社ドワンゴとは提携していません。
-          特許権を侵害する意図はありません。サイトの DOM 変更により機能が予告なく
-          壊れる可能性があります。
+          特許権を侵害する意図はありません。配信サイトのページ構造が変わると、
+          機能が予告なく動作しなくなる場合があります。
         </p>
       </section>
     </main>

@@ -1,5 +1,5 @@
 ﻿# Store icons — fullscreen frame + chat mark; simplify at tiny sizes.
-# ストア用。全画面枠＋チャット。極小サイズは簡略化。
+# ストア用。全画面枠＋チャット。小さいサイズでは図柄を簡略化する。
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
@@ -84,7 +84,7 @@ function New-Icon([int]$size, [string]$pathOut) {
 
   $s = [float]$size
   # Fill the canvas — less outer pad so the mark reads larger in the toolbar.
-  # キャンバスを使い切る。外側余白を減らしツールバーで大きく見えるように。
+  # 外側の余白を減らしてキャンバスを使い、ツールバーで大きく表示されるようにする。
   $pad = [Math]::Max(0.5, $s * 0.02)
   $tile = New-Object System.Drawing.RectangleF $pad, $pad, ($s - 2 * $pad), ($s - 2 * $pad)
   $tilePath = New-RoundedRectPath $tile ([Math]::Max(2.0, $s * 0.18))
@@ -136,7 +136,7 @@ function New-Icon([int]$size, [string]$pathOut) {
     }
     $lineBrush.Dispose()
   } elseif ($size -ge 16) {
-    # Single bar at 16px so the mark still reads as chat / 16px は1本だけ
+    # Single bar at 16px so the mark still reads as chat / 16 px では吹き出し内の線を 1 本にする
     $lineBrush = New-Object System.Drawing.SolidBrush $line
     $lh = [Math]::Max(1.2, $ch * 0.18)
     $lineRect = New-Object System.Drawing.RectangleF ($cx + $cw * 0.18), ($cy + $ch * 0.4), ($cw * 0.58), $lh

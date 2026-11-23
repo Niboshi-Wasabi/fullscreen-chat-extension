@@ -12,7 +12,7 @@ GitHub ActionsとPRテンプレート、固定した検査ツールの準備・�
 
 - Windowsを優先し、Windows固定イメージ・Node/pnpm固定版で既存verifyを実行する。
 - PR、push、手動起動に対応。pull_request_targetやシークレットを使わず、contents: read、checkout認証情報非保持、Actionは実在するコミットSHAで固定する。
-- Gitleaksとactionlintの公式Windowsバイナリを版・配布物SHA-256で固定し、プロジェクト内の無視ディレクトリへ配置。ダウンロード/展開後の失敗を成功扱いしない。
+- Gitleaksとactionlintの公式Windowsバイナリを版・配布物SHA-256で固定し、プロジェクト内の無視ディレクトリへ配置。ダウンロード/展開後の失敗を成功と記録しない。
 - 秘密情報は作業ツリーをステージングして検査し、Git配置後は全取得履歴も検査する。Git未配置では履歴未検証と記録し、CIでは履歴必須。
 - npm auditは開発依存も対象とし、照会・解析失敗は非ゼロ終了。既知の問題をignoreで隠さない。
 - 検証結果と両ビルドを保存し、自動公開はしない。失敗時に診断を保存するが、秘密情報の検出内容はredactする。

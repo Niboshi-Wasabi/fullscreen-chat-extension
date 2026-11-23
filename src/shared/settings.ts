@@ -3,6 +3,7 @@
  * 設定スキーマ。docs/settings-inventory.md と対応させる。
  */
 
+import { isTrustedExtensionSender } from "./trusted-sender";
 import {
   cleanSettingsPatch,
   isSettingsPatch,
@@ -26,8 +27,9 @@ export function parseUiLocale(value: unknown): UiLocale {
 export type DisplayMode = "panel" | "popout" | "danmaku";
 export type PanelAnchor = "left" | "right";
 export type DanmakuDensity = "low" | "mid" | "high";
-/** currentLive = only the live you're watching; anyWatchPage = previous broader open.
- * currentLive = 今見ているライブのみ。anyWatchPage = 従来どおり広めに開く。 */
+/** currentLive = only the live you're watching; anyWatchPage also opens on
+ * Twitch channel pages that are not live. YouTube never opens on regular videos.
+ * currentLive = 今見ているライブのみ。anyWatchPage は配信外の Twitch チャンネルでも開く。 */
 export type PopoutOpenPolicy = "currentLive" | "anyWatchPage";
 
 export interface PanelBounds {
@@ -100,13 +102,6 @@ export interface ExtensionSettings {
   };
 
   youtubeLive: { enabled: boolean };
-  youtubeComments: {
-    enabled: boolean;
-    /** Prefer Top or Newest via native sort control / 公式の並び替えを踏襲 */
-    sort: "top" | "newest";
-    /** Keep clicking continuation / show-more controls / 続き・返信をもっと見るを押し続ける */
-    autoLoadMore: boolean;
-  };
   twitch: {
     enabled: boolean;
     /** Resolve BTTV / FFZ / 7TV codes in scraped chat / 取得チャット内の第三者エモートを解決 */
@@ -168,11 +163,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     applyToNativeChat: true,
   },
   youtubeLive: { enabled: true },
-  youtubeComments: {
-    enabled: true,
-    sort: "top",
-    autoLoadMore: true,
-  },
   twitch: { enabled: true, thirdPartyEmotes: true },
   archive: {
     syncOffsetSec: 0,
@@ -203,21 +193,31 @@ function mergePopout(
   base: ExtensionSettings["popout"],
   patch: unknown,
 ): ExtensionSettings["popout"] {
+  const baseBounds = base.boundsBySite;
   if (!isRecord(patch)) {
-    return { ...base, boundsBySite: { ...base.boundsBySite } };
+    return {
+      ...base,
+      ...(baseBounds ? { boundsBySite: { ...baseBounds } } : {}),
+    };
   }
-  const nextBoundsBySite = {
-    ...base.boundsBySite,
-    ...(isRecord(patch.boundsBySite) ? patch.boundsBySite : {}),
-  } as ExtensionSettings["popout"]["boundsBySite"];
+  const patchBounds = isRecord(patch.boundsBySite)
+    ? patch.boundsBySite
+    : undefined;
+  const nextBoundsBySite =
+    baseBounds || patchBounds
+      ? ({
+          ...baseBounds,
+          ...patchBounds,
+        } as ExtensionSettings["popout"]["boundsBySite"])
+      : undefined;
   return {
     ...base,
     ...patch,
-    boundsBySite: nextBoundsBySite,
+    ...(nextBoundsBySite ? { boundsBySite: nextBoundsBySite } : {}),
   };
 }
 
-/** Shallow-merge nested settings bags / ネストした設定袋を浅いマージ */
+/** Shallow-merge nested settings bags / ネストした設定オブジェクトを浅くマージする */
 export function mergeSettings(
   base: ExtensionSettings,
   patch: SettingsPatch | Record<string, unknown>,
@@ -236,10 +236,6 @@ export function mergeSettings(
     youtubeLive: {
       ...base.youtubeLive,
       ...(isRecord(patch.youtubeLive) ? patch.youtubeLive : {}),
-    },
-    youtubeComments: {
-      ...base.youtubeComments,
-      ...(isRecord(patch.youtubeComments) ? patch.youtubeComments : {}),
     },
     twitch: {
       ...base.twitch,
@@ -264,11 +260,7 @@ export async function loadSettings(): Promise<ExtensionSettings> {
   ]);
   const raw = stored[STORAGE_KEY];
   if (!isRecord(raw)) {
-    return {
-      ...DEFAULT_SETTINGS,
-      panel: { ...DEFAULT_SETTINGS.panel },
-      danmaku: { ...DEFAULT_SETTINGS.danmaku },
-    };
+    return structuredClone(DEFAULT_SETTINGS);
   }
   let merged = mergeSettings(
     DEFAULT_SETTINGS,
@@ -329,7 +321,7 @@ export function registerSettingsPersistence(): () => void {
   >[0] = (message, sender, respond) => {
     if (!isRecord(message) || message.type !== SETTINGS_WRITE_TYPE) return;
     if (
-      sender.id !== browser.runtime.id ||
+      !isTrustedExtensionSender(sender as { id?: string }) ||
       (message.operation !== "patch" && message.operation !== "replace") ||
       !isSettingsPatch(message.settings)
     ) {
@@ -400,9 +392,18 @@ export function watchSettings(
       previous,
     );
   };
-  browser.storage.onChanged.addListener(listener);
+  try {
+    browser.storage.onChanged.addListener(listener);
+  } catch {
+    subscribed = false;
+    return () => {};
+  }
   return () => {
     subscribed = false;
-    browser.storage.onChanged.removeListener(listener);
+    try {
+      browser.storage.onChanged.removeListener(listener);
+    } catch {
+      // Extension context may already be invalidated on teardown.
+    }
   };
 }

@@ -1,5 +1,11 @@
-import type { MessageSegment, NormalizedMessage } from "../../core/message";
+import type {
+  MessageSegment,
+  NormalizedMessage,
+  SiteKind,
+} from "../../core/message";
+import { isSafeHttpsImageUrl } from "../../shared/safe-image-url";
 import type { ExtensionSettings } from "../../shared/settings";
+import { createSiteBadge } from "../../ui/site-icons";
 
 const HOST_ID = "fce-danmaku-host";
 /** Horizontal gap (px) on the same track — keep tight so the screen fills.
@@ -10,7 +16,7 @@ const VERTICAL_PAD_PX = 2;
 /** Timeline sample step for collision (ms) / 衝突判定の時間刻み */
 const COLLISION_SAMPLE_MS = 32;
 /** Brief waits before accepting overlap when the screen is full.
- * 画面が満杯のとき、重なり許容までに待つ短い回数。 */
+ * 表示する位置が空いていないとき、重なりを許容するまでの再試行回数。 */
 const MAX_CLEAR_ATTEMPTS = 4;
 /** Extra delay (ms) per clear retry / 空き待ちの追加遅延 */
 const CLEAR_RETRY_BASE_MS = 70;
@@ -22,16 +28,20 @@ export interface DanmakuController {
   /** Update an in-flight row without starting another animation. */
   update(message: NormalizedMessage, visible: boolean): void;
   flush(messages: NormalizedMessage[]): void;
+  clear(): void;
+  clearSite?(site: SiteKind): void;
   applySettings(settings: ExtensionSettings): void;
+  setMixedMode?(mixed: boolean): void;
   reparentForFullscreen(): void;
 }
 
 /**
  * One in-flight danmaku — geometry is measured from the real DOM node.
- * 飛行中の 1 本。幾何は実 DOM から測る。
+ * 画面を流れているコメント 1 件。位置と寸法は DOM 要素から実測する。
  */
 interface ActiveDanmaku {
   id: string;
+  site: SiteKind;
   messageId: string;
   element: HTMLElement;
   top: number;
@@ -49,21 +59,31 @@ interface ActiveDanmaku {
  */
 export function createDanmakuView(): DanmakuController {
   let host: HTMLDivElement | null = null;
+  let mountParent: HTMLElement | null = null;
   let settings: ExtensionSettings | null = null;
+  let mixedMode = false;
   let acceptCounter = 0;
   let seq = 0;
   const active = new Map<string, ActiveDanmaku>();
-  const pendingItems = new Map<HTMLElement, string>();
+  const pendingItems = new Map<
+    HTMLElement,
+    { messageId: string; site: SiteKind }
+  >();
   const latestMessages = new Map<string, NormalizedMessage>();
-  const timers = new Set<number>();
+  const timers = new Map<number, SiteKind>();
 
   return {
     mount(parent) {
+      mountParent = parent;
+      const target =
+        (document.fullscreenElement instanceof HTMLElement
+          ? document.fullscreenElement
+          : null) ?? parent;
       if (host?.isConnected) {
-        if (host.parentElement !== parent) {
-          parent.appendChild(host);
+        if (host.parentElement !== target) {
+          target.appendChild(host);
         }
-        ensureHostFillsPlayer(parent);
+        ensureHostFillsPlayer(target);
         return;
       }
       unmount();
@@ -71,36 +91,44 @@ export function createDanmakuView(): DanmakuController {
       host.id = HOST_ID;
       host.setAttribute("data-fce-view", "danmaku");
       applyHostChrome(host);
-      parent.appendChild(host);
-      ensureHostFillsPlayer(parent);
+      target.appendChild(host);
+      ensureHostFillsPlayer(target);
     },
     unmount,
+    clear: clearBoard,
+    clearSite,
     push(message) {
       if (!host || !settings) return;
-      latestMessages.set(message.id, message);
+      latestMessages.set(messageKey(message), message);
       void spawn(message, false, 0);
     },
     update(message, visible) {
+      const key = messageKey(message);
       if (visible) {
-        if (latestMessages.has(message.id))
-          latestMessages.set(message.id, message);
-      } else latestMessages.delete(message.id);
-      for (const [element, messageId] of pendingItems) {
-        if (messageId !== message.id) continue;
-        if (!visible) element.remove();
-        else if (settings) {
+        if (latestMessages.has(key)) latestMessages.set(key, message);
+      } else latestMessages.delete(key);
+      for (const [element, pending] of pendingItems) {
+        if (pending.site !== message.site || pending.messageId !== message.id) {
+          continue;
+        }
+        if (!visible) {
+          pendingItems.delete(element);
+          element.remove();
+        } else if (settings) {
           element.replaceChildren();
-          fillDanmakuContent(element, message, settings);
+          fillDanmakuContent(element, message, settings, mixedMode);
         }
       }
       for (const [id, item] of active) {
-        if (item.messageId !== message.id) continue;
+        if (item.site !== message.site || item.messageId !== message.id) {
+          continue;
+        }
         if (!visible) {
           item.element.remove();
           active.delete(id);
         } else if (settings) {
           item.element.replaceChildren();
-          fillDanmakuContent(item.element, message, settings);
+          fillDanmakuContent(item.element, message, settings, mixedMode);
           item.width = Math.max(item.element.offsetWidth, 1);
           item.height = Math.max(item.element.offsetHeight, 1);
         }
@@ -109,25 +137,30 @@ export function createDanmakuView(): DanmakuController {
     flush(messages) {
       if (!host || !settings) return;
       // Stagger more on large dumps so collision can settle between spawns.
-      // 大量投入時は間隔を空け、衝突判定が落ち着くようにする。
+      // 大量投入時は間隔を空け、コメント同士の重なりを判定できるようにする。
       const recent = messages.slice(-48);
       recent.forEach((message, index) => {
-        latestMessages.set(message.id, message);
+        latestMessages.set(messageKey(message), message);
         const timer = window.setTimeout(() => {
           timers.delete(timer);
           void spawn(message, true, 0);
         }, index * 45);
-        timers.add(timer);
+        timers.set(timer, message.site);
       });
     },
     applySettings(next) {
       settings = next;
     },
+    setMixedMode(mixed) {
+      mixedMode = mixed;
+    },
     reparentForFullscreen() {
       if (!host) {
         return;
       }
-      const target = resolveDanmakuParent();
+      const target = resolveDanmakuParent(
+        mountParent?.isConnected ? mountParent : null,
+      );
       if (host.parentElement !== target) {
         target.appendChild(host);
       }
@@ -141,26 +174,32 @@ export function createDanmakuView(): DanmakuController {
     fromFlush: boolean,
     attempt: number,
   ): Promise<void> {
+    const key = messageKey(message);
     if (!host || !settings) {
-      latestMessages.delete(message.id);
+      latestMessages.delete(key);
+      return;
+    }
+    // Background tabs pause requestAnimationFrame; skip spawning so nodes never pile up.
+    if (typeof document !== "undefined" && document.hidden) {
+      latestMessages.delete(key);
       return;
     }
     const mount = host;
-    const latest = latestMessages.get(message.id);
+    const latest = latestMessages.get(key);
     if (!latest) return;
     message = latest;
     const modeAllows =
       settings.displayMode === "danmaku" ||
       (settings.danmakuOverlayOnPanel && settings.danmaku.enabled);
     if (!modeAllows && !settings.danmaku.enabled) {
-      latestMessages.delete(message.id);
+      latestMessages.delete(key);
       return;
     }
 
     if (!fromFlush && !message.isSelf && attempt === 0) {
       acceptCounter += 1;
       if (!shouldAcceptByDensity(settings.danmaku.density, acceptCounter)) {
-        latestMessages.delete(message.id);
+        latestMessages.delete(key);
         return;
       }
     }
@@ -168,7 +207,11 @@ export function createDanmakuView(): DanmakuController {
     const hostHeight = Math.max(host.clientHeight, 1);
     const hostWidth = Math.max(host.clientWidth, 1);
     if (hostWidth < 40 || hostHeight < 40) {
-      scheduleRetry(message, fromFlush, attempt, 120);
+      if (attempt >= MAX_CLEAR_ATTEMPTS) {
+        latestMessages.delete(key);
+        return;
+      }
+      scheduleRetry(message, fromFlush, attempt + 1, 120);
       return;
     }
 
@@ -182,10 +225,11 @@ export function createDanmakuView(): DanmakuController {
     // 先に隠して実寸を測り、その値で座標を決める。
     const item = document.createElement("div");
     item.className = "fce-danmaku-item";
+    item.dataset.site = message.site;
     if (message.isSelf) {
       item.dataset.self = "1";
     }
-    fillDanmakuContent(item, message, settings);
+    fillDanmakuContent(item, message, settings, mixedMode);
     item.style.cssText = [
       "position:absolute",
       "top:0",
@@ -202,17 +246,17 @@ export function createDanmakuView(): DanmakuController {
       "gap:0.15em",
     ].join(";");
     host.appendChild(item);
-    pendingItems.set(item, message.id);
+    pendingItems.set(item, { messageId: message.id, site: message.site });
 
     await waitForLayout(item);
     pendingItems.delete(item);
 
     if (!host || host !== mount || !item.isConnected || !settings) {
-      if (host === mount) latestMessages.delete(message.id);
+      if (host === mount) latestMessages.delete(key);
       item.remove();
       return;
     }
-    const current = latestMessages.get(message.id);
+    const current = latestMessages.get(key);
     if (!current) {
       item.remove();
       return;
@@ -220,7 +264,7 @@ export function createDanmakuView(): DanmakuController {
     if (current !== message) {
       message = current;
       item.replaceChildren();
-      fillDanmakuContent(item, message, settings);
+      fillDanmakuContent(item, message, settings, mixedMode);
     }
 
     const width = Math.max(item.offsetWidth, 1);
@@ -263,7 +307,7 @@ export function createDanmakuView(): DanmakuController {
     }
     const top = placement.top;
 
-    const id = `d-${seq++}-${message.id}`;
+    const id = `d-${seq++}-${key}`;
     item.style.cssText = [
       "position:absolute",
       `top:${Math.round(top)}px`,
@@ -282,7 +326,7 @@ export function createDanmakuView(): DanmakuController {
       "will-change:transform",
       "transform:translateX(0)",
       "pointer-events:none",
-      message.isSelf ? "color:#ffe08a;" : "",
+      message.isSelf ? "color:#ffe08a" : "",
       settings.danmaku.outline
         ? "text-shadow:0 0 2px #000,0 0 3px #000,1px 1px 0 #000,-1px -1px 0 #000"
         : "",
@@ -291,6 +335,7 @@ export function createDanmakuView(): DanmakuController {
 
     const record: ActiveDanmaku = {
       id,
+      site: message.site,
       messageId: message.id,
       element: item,
       top,
@@ -315,10 +360,10 @@ export function createDanmakuView(): DanmakuController {
     const expiry = window.setTimeout(() => {
       timers.delete(expiry);
       active.delete(id);
-      latestMessages.delete(message.id);
+      latestMessages.delete(key);
       item.remove();
     }, durationMs + 320);
-    timers.add(expiry);
+    timers.set(expiry, message.site);
   }
 
   /**
@@ -422,7 +467,7 @@ export function createDanmakuView(): DanmakuController {
       timers.delete(timer);
       void spawn(message, fromFlush, attempt);
     }, delayMs);
-    timers.add(timer);
+    timers.set(timer, message.site);
   }
 
   function pruneActive(): void {
@@ -437,19 +482,54 @@ export function createDanmakuView(): DanmakuController {
     }
   }
 
-  function unmount(): void {
-    for (const timer of timers) {
+  function clearSite(site: SiteKind): void {
+    for (const [timer, timerSite] of timers) {
+      if (timerSite !== site) continue;
+      window.clearTimeout(timer);
+      timers.delete(timer);
+    }
+    for (const [element, pending] of pendingItems) {
+      if (pending.site !== site) continue;
+      pendingItems.delete(element);
+      element.remove();
+    }
+    for (const [id, item] of active) {
+      if (item.site !== site) continue;
+      item.element.remove();
+      active.delete(id);
+    }
+    for (const [key, msg] of latestMessages) {
+      if (msg.site === site) {
+        latestMessages.delete(key);
+      }
+    }
+  }
+
+  function clearBoard(): void {
+    for (const timer of timers.keys()) {
       window.clearTimeout(timer);
     }
     timers.clear();
+    for (const element of pendingItems.keys()) {
+      element.remove();
+    }
+    pendingItems.clear();
     for (const item of active.values()) {
       item.element.remove();
     }
     active.clear();
-    pendingItems.clear();
     latestMessages.clear();
+  }
+
+  function messageKey(message: Pick<NormalizedMessage, "id" | "site">): string {
+    return `${message.site ?? ""}:${message.id}`;
+  }
+
+  function unmount(): void {
+    clearBoard();
     host?.remove();
     host = null;
+    mixedMode = false;
     acceptCounter = 0;
   }
 }
@@ -565,7 +645,28 @@ function fillDanmakuContent(
   item: HTMLElement,
   message: NormalizedMessage,
   settings: ExtensionSettings,
+  mixedMode = false,
 ): void {
+  if (mixedMode) {
+    const siteBadge = createSiteBadge(message.site, "fce-danmaku-site");
+    siteBadge.style.cssText = [
+      "display:inline-flex",
+      "align-items:center",
+      "justify-content:center",
+      "width:0.95em",
+      "height:0.95em",
+      "margin-right:0.15em",
+      "flex-shrink:0",
+      "filter:drop-shadow(0 1px 2px rgba(0,0,0,0.85))",
+    ].join(";");
+    const svg = siteBadge.firstElementChild as SVGElement | null;
+    if (svg) {
+      svg.style.display = "block";
+      svg.style.width = "100%";
+      svg.style.height = "100%";
+    }
+    item.appendChild(siteBadge);
+  }
   if (settings.danmaku.showAuthor) {
     const author = document.createElement("span");
     author.className = "fce-danmaku-author";
@@ -585,6 +686,12 @@ function fillDanmakuContent(
       const span = document.createElement("span");
       span.textContent = segment.text;
       item.appendChild(span);
+      continue;
+    }
+    if (!isSafeHttpsImageUrl(segment.src)) {
+      const fallback = document.createElement("span");
+      fallback.textContent = segment.alt ? `:${segment.alt}:` : "✦";
+      item.appendChild(fallback);
       continue;
     }
     const img = document.createElement("img");
@@ -617,10 +724,13 @@ function applyHostChrome(host: HTMLElement): void {
   ].join(";");
 }
 
-function resolveDanmakuParent(): HTMLElement {
+function resolveDanmakuParent(preferred: HTMLElement | null): HTMLElement {
   const fullscreenElement = document.fullscreenElement;
   if (fullscreenElement instanceof HTMLElement) {
     return fullscreenElement;
+  }
+  if (preferred) {
+    return preferred;
   }
   return (
     document.querySelector<HTMLElement>(".html5-video-player") ??
@@ -632,6 +742,9 @@ function resolveDanmakuParent(): HTMLElement {
 }
 
 function ensureHostFillsPlayer(parent: HTMLElement): void {
+  if (parent === document.body || parent === document.documentElement) {
+    return;
+  }
   const style = window.getComputedStyle(parent);
   if (style.position === "static") {
     parent.style.position = "relative";

@@ -6,7 +6,7 @@
 
 ## 決定
 
-単一のWindows 2025ジョブをPR/push/手動起動に対応させ、ローカルと同じNode/pnpmと検査入口を使う。contents: readと認証情報非保持、特権イベント・シークレットなし、確認済みActionコミットSHAを採用する。
+PR、push、手動実行は 1 つの Windows 2025 ジョブで処理する。ローカルと同じ Node、pnpm、検証コマンドを使う。contents: readと認証情報非保持、特権イベント・シークレットなし、確認済みActionコミットSHAを採用する。
 
 Gitleaks 8.30.1・Actionlint 1.7.12の公式Windows x64配布物を、ZIPとexeのSHA-256を照合してから使用。第三者インストールスクリプトやライセンス用シークレットを必要とするActionは導入しない。macOS用配布物は実機検証まで追加しない。
 

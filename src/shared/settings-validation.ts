@@ -88,11 +88,6 @@ const schema: Rule = {
     applyToNativeChat: bool,
   },
   youtubeLive: { enabled: bool },
-  youtubeComments: {
-    enabled: bool,
-    sort: choice("top", "newest"),
-    autoLoadMore: bool,
-  },
   twitch: { enabled: bool, thirdPartyEmotes: bool },
   archive: { syncOffsetSec: range(-30, 30), maxSkewSec: range(0.5, 15) },
   compose: { enabled: bool, stealShortcuts: bool },

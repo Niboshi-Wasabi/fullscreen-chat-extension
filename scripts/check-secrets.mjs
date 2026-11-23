@@ -22,7 +22,7 @@ function removeStaging(staging, artifacts) {
   fs.rmSync(staging, { recursive: true, force: true });
 }
 
-/** Run the pinned scanner with redaction and no inline/ignore-file bypass / redactを有効にし例外コメントで隠さない。 */
+/** Run the pinned scanner with redaction and no inline/ignore-file bypass / 一致した値は伏せ字にし、例外コメントや除外ファイルによる回避は認めない。 */
 export function scanSecrets(target, reportFile, mode = "dir") {
   fs.mkdirSync(path.dirname(reportFile), { recursive: true });
   const ignoreFile = path.join(
@@ -74,7 +74,7 @@ export function scanSecrets(target, reportFile, mode = "dir") {
   };
 }
 
-/** Gather authored files; Git tracks ignored-but-committed files as well / Git配置時は誤って追跡した生成物も走査する。 */
+/** Gather authored files; Git tracks ignored-but-committed files as well / Git が追跡していれば、除外設定がある生成物も検査する。 */
 export function secretScanFiles(root, git = spawnSync) {
   const detected = git("git", ["-C", root, "rev-parse", "--show-toplevel"], {
     encoding: "utf8",

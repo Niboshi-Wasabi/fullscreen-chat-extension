@@ -66,8 +66,8 @@ popupのキー操作は別途、browser.windows/tabs APIでフォーカスを試
 | # | 対象 | 確認した結果 |
 |---|---|---|
 | 1 | 拡張起動 | 一時読み込み、background設定API、session/windows API、commands登録 |
-| 2 | popup | DOMクリックによるON/OFF、日本語切替、再読込で保存維持、サイト別トグルの描画 |
-| 3 | options | NG語入力・保存・再読込 |
+| 2 | popup | DOMクリックによるON/OFF、日本語切替、再読み込みで保存維持、サイト別トグルの描画 |
+| 3 | options | NG語入力・保存・再読み込み |
 | 4 | YouTube通常コメント | 受信・NG、弾幕禁止、無効化後の履歴復元、SPAイベント重複時のruntime単一性 |
 | 5 | 入力 | 合成isComposingイベントで下書き保持、失敗時の下書き・エラー表示、フォーカスコマンドのメッセージ到達 |
 | 6 | 全画面 | Firefox Fullscreen APIで入退場、パネルの再配置 |

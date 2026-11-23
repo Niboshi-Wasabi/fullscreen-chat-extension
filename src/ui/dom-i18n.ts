@@ -10,7 +10,7 @@ import "../shared/i18n/register-lazy-locales";
 import type { UiLocale } from "../shared/settings";
 
 /** Apply data-i18n / data-i18n-title / data-i18n-placeholder and document lang/dir.
- *  data-i18n 等と document.lang / dir を反映する。 */
+ *  data-i18n などの翻訳属性を反映し、文書の言語と文字方向を設定する。 */
 export async function applyDomI18n(
   uiLocale: UiLocale,
   titleKey?: MessageKey,
@@ -40,6 +40,15 @@ export async function applyDomI18n(
       if (element.hasAttribute("aria-label")) {
         element.setAttribute("aria-label", value);
       }
+    });
+  document
+    .querySelectorAll<HTMLElement>("[data-i18n-aria-label]")
+    .forEach((element) => {
+      const key = element.dataset.i18nAriaLabel as MessageKey | undefined;
+      if (!key) {
+        return;
+      }
+      element.setAttribute("aria-label", t(uiLocale, key));
     });
   document
     .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(

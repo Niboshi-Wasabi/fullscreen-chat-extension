@@ -9,7 +9,7 @@ function withoutCode(text) {
     .replace(/`[^`\n]*`/g, "");
 }
 
-/** Read authored docs and metadata; return actionable errors / 文書・メタデータを読み取り検査。 */
+/** Read authored docs and metadata; return actionable errors / 文書とメタデータを読み込み、修正が必要な箇所を返す。 */
 export function checkDocumentation(root) {
   const errors = [];
   const entries = ["AGENTS.md", "README.md", "docs/index.md"];
@@ -46,7 +46,7 @@ export function checkDocumentation(root) {
         continue;
       }
       // Same-document anchors (`#iss-021`) resolve to the current file, not its directory.
-      // 同一文書アンカーはディレクトリではなく当該ファイルへ解決する。
+      // 同じ文書を指すアンカーは、現在のファイルへの参照として解決する。
       const resolved = target ? path.resolve(path.dirname(file), target) : file;
       const inside = path.relative(root, resolved);
       if (
@@ -61,9 +61,10 @@ export function checkDocumentation(root) {
         if (!fs.statSync(resolved).isFile())
           errors.push(`${relative}: issue anchor target is not a file: ${raw}`);
         else if (
-          !fs
-            .readFileSync(resolved, "utf8")
-            .includes(`## ${raw.split("#")[1].toUpperCase()}`)
+          !new RegExp(
+            `^## ${raw.split("#")[1].toUpperCase()}(?:\\s|$)`,
+            "m",
+          ).test(fs.readFileSync(resolved, "utf8"))
         )
           errors.push(`${relative}: missing issue anchor ${raw}`);
       }

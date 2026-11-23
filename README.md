@@ -1,45 +1,44 @@
 # Fullscreen Chat Extension
 
-YouTube（ライブ／アーカイブ／通常コメント）と Twitch を、全画面のまま快適に読む・書くためのブラウザ拡張です。
+YouTube と Twitch の動画を全画面で見ながら、チャットを読んだり、投稿可能な配信でコメントを書いたりできるブラウザ拡張機能です。
 
-実装は **WXT + TypeScript**（Chromium / Firefox）。自前コア（greenfield / **MIT**）。
+WXT と TypeScript で独自に実装しており、Chromium と Firefox に対応します。ライセンスは MIT です。
+
+## 主な機能
+
+- YouTube のライブ、プレミア公開、チャットリプレイ付きアーカイブと、Twitch のライブ、VOD に対応します。
+- チャットはパネル、別窓、弾幕で表示できます。通常のパネルでは公式チャットと拡張機能のリストを選べます。
+- YouTube と Twitch のライブを同じブラウザで開くと、どちらの視聴タブでも両方のチャットを読み取り専用で表示できます。取り込むチャットの追加遅延は 0〜120 秒の範囲で調整できます。
+- 対応環境ではチャットを Document PiP で前面に固定できます。
+- NG フィルタは `applyToNativeChat` の設定で公式チャットにも適用できます。アーカイブの同期オフセットと別窓の対象を設定できます。
+- 設定のバックアップ、Twitch の外部サービス製エモート（BTTV、FFZ、7TV）、約 44 言語の UI に対応します。
+- プレーヤー右側のボタンで表示を切り替え、パネルの歯車から表示を調整できます。全体の設定は拡張機能のポップアップや設定画面で変更できます。
+
+YouTube の通常動画と Shorts は対象外です。ニコニコ生放送への対応は 2026-11-15 に削除しました。
 
 ## 開発
 
 ```bash
-pnpm install
-pnpm.cmd dev          # Chromium（PowerShell で pnpm.ps1 が弾かれる場合）
+pnpm.cmd install
+pnpm.cmd dev          # Chromium
 pnpm.cmd dev:firefox
 pnpm.cmd build
 pnpm.cmd build:firefox
 pnpm.cmd compile
 ```
 
-ロード: Chrome の `chrome://extensions` → デベロッパーモード → `.output/chrome-mv3`（開発中は `chrome-mv3-dev`）を読み込み。
+Chrome では `chrome://extensions` のデベロッパーモードで `.output/chrome-mv3` を読み込みます。開発サーバーの出力は `.output/chrome-mv3-dev` です。Firefox への一時インストールやビルドの切り替えは [開発手順](docs/operations/development.md)を参照してください。
 
 ## ストア用パッケージ
 
 ```bash
-pnpm.cmd zip          # Chrome → .output/chrome-mv3-*.zip
-pnpm.cmd zip:firefox  # Firefox → .output/firefox-mv3-*.zip
+pnpm.cmd zip          # .output/fullscreen-chat-extension-<version>-chrome.zip
+pnpm.cmd zip:firefox  # .output/fullscreen-chat-extension-<version>-firefox.zip
 ```
 
-掲載文・提出チェックリスト: [docs/store-listing.md](docs/store-listing.md)  
-アイコン再生成: `powershell -ExecutionPolicy Bypass -File scripts/generate-icons.ps1`  
-Firefox ID: `fullscreen-chat-extension@niboshi.dev`（データ収集 `none`）
+提出前に [ストア掲載文と提出チェックリスト](docs/store-listing.md)を確認してください。アイコンの再生成には `powershell -ExecutionPolicy Bypass -File scripts/generate-icons.ps1` を使います。
 
-## 機能（Phase 0–14）
-
-- パネル（公式チャット埋め込み／自前リスト）、別窓（公式 popout）、弾幕
-- YouTube Live / チャットリプレイ同期 / 通常コメント
-- Twitch Live / VOD
-- 設定バックアップ、Document PiP 常時前面（対応時）、Twitch BTTV/FFZ/7TV、通常コメントの並び／続き読み込み
-- 公式チャット埋め込み内 NG（`applyToNativeChat`）
-- NG フィルタ、アーカイブ同期オフセット、別窓ポリシー
-- ポップアップ（有効・モード・サイト・言語）／オプション（深い設定）
-- ニコニコ生放送は非対応（2026-11-15 に削除）
-- プレイヤー右コントロール（シーク帯脇）の ON/OFF トグル・パネルギア
-- UI 約 44 言語、[プライバシーポリシー](public/privacy.html) 同梱
+Firefox の拡張機能 ID は `fullscreen-chat-extension@niboshi.dev` です。データ収集の宣言は `none` です。
 
 ## ドキュメント
 
@@ -54,21 +53,22 @@ Firefox ID: `fullscreen-chat-extension@niboshi.dev`（データ収集 `none`）
 
 ## 弾幕に関する免責
 
-本拡張の弾幕は個人／コミュニティ向けの非営利利用を想定した非公式機能です。YouTube・Twitch・株式会社ドワンゴとは提携しておらず、特許権を侵害する意図はありません。サイトの DOM 変更により機能が壊れる可能性があります。
+弾幕は、個人やコミュニティでの非営利利用を想定した非公式機能です。YouTube、Twitch、株式会社ドワンゴとの提携関係はなく、特許権を侵害する意図はありません。配信サイトのページ構造が変わると、機能が動作しなくなる場合があります。
 
 ## 権限
 
-- `storage` — 設定の端末内保存
-- `windows` — 公式チャット別窓
-- host: `youtube.com` / `twitch.tv` / `live.nicovideo.jp` / `live2.nicovideo.jp`
+- `storage` は設定の端末内保存と、別窓管理や混合チャット接続に必要な情報のセッション内保持に使います。
+- `windows` は公式チャットや混合チャットの別窓を開くときに使います。
+- ホスト権限の対象は `youtube.com` と `twitch.tv`、および有効時のみ利用する外部エモート API と CDN（`betterttv.net`、`frankerfacez.com`、`7tv.io`、`7tv.app`）です。
 
-## ルール
+## 開発ルールと検証
 
-AI作業の入口は [AGENTS.md](AGENTS.md)、仕様・手順の正本は [文書索引](docs/index.md)です。
-共通Skillsは `.agents/skills/`、Cursor固有の適用条件は `.cursor/rules/` に置きます。
+エージェント向けの作業ルールは [AGENTS.md](AGENTS.md)、仕様と手順の参照先は [文書索引](docs/index.md)にあります。
+共通スキルは `.agents/skills/`、Cursor 固有の適用条件は `.cursor/rules/` に置きます。導入の経緯は [ハーネス導入計画](docs/plans/2026-11-14-harness-foundation.md)を参照してください。
 
-[ハーネス導入計画](docs/plans/2026-11-14-harness-foundation.md)に段階と進捗を記録しています。
-文書・Skillsとローカル検証基盤を整備しています。`pnpm.cmd verify` で型・静的解析・回帰テスト・構造・文書・多言語・両ビルド・manifestを検査します。
-`pnpm.cmd verify:security` で脆弱性・秘密情報を検査します。初回の検証ツール取得と脆弱性照会にはネット接続が必要です。現在のネイティブ検査ツールはWindows x64向けです。
-[ブラウザ検証](docs/operations/browser-verification.md)は `pnpm.cmd verify:browser`（同梱Chromium）または `pnpm.cmd verify:chrome`（インストール済みChromeの専用プロファイル）で行います。通常のverifyにはE2Eを含みません。CIは同梱Chromiumを必須とします。
-[CI手順](docs/operations/ci.md)とワークフローは追加済みですが、GitHub実行・ブランチ保護・Firefox/実サイト検証は未実施です。検証範囲と手動確認は [品質基準](docs/quality/standards.md)を参照してください。
+- `pnpm.cmd verify` で型、静的解析、回帰テスト、構造、文書、翻訳、両ブラウザ向けビルド、マニフェストを検証します。
+- 日本語の文章を変更したときは `pnpm.cmd check:japanese` を実行し、指摘箇所を原文と照らし合わせます。[日本語の校閲と差分検査](docs/operations/japanese-proofreading.md)
+- `pnpm.cmd verify:security` で依存関係の脆弱性と秘密情報の混入を検証します。初回のツール取得と脆弱性の照会にはネット接続が必要です。ネイティブ検査ツールは Windows x64 向けです。
+- E2E は `pnpm.cmd verify:browser`（同梱 Chromium）または `pnpm.cmd verify:chrome`（インストール済みの Chrome と専用プロファイル）で実行します。CI は同梱 Chromium を使います。[ブラウザ検証](docs/operations/browser-verification.md)
+
+検証範囲と手動確認については [品質基準](docs/quality/standards.md)を参照してください。初回の `verify-windows` 実行とブランチ保護の設定は 2026-11-15 に実施しました。変更後の CI と提出前の確認については [CI 手順](docs/operations/ci.md)を参照してください。

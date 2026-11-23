@@ -4,12 +4,13 @@ vi.mock("../../src/shared/video-clock", () => ({
   getPageMediaTimeSec: vi.fn(() => 42),
 }));
 
+import { parseClockToSeconds } from "../../src/core/archive-sync";
 import {
-  parseClockToSeconds,
   parseTwitchTimeParam,
   readTwitchVodOffsetSec,
 } from "../../src/adapters/twitch";
 import {
+  extractTwitchChannel,
   extractTwitchChannelFromPage,
   isTwitchVodPage,
   resolveNativePanelChatUrl,
@@ -39,6 +40,12 @@ describe("Twitch VOD URL and popout policy", () => {
       parseTwitchTimeParam("https://www.twitch.tv/videos/1?t=1h2m3s"),
     ).toBe(3723);
     expect(parseTwitchTimeParam("/videos/1?t=90s")).toBe(90);
+    expect(parseTwitchTimeParam("/videos/1?t=-10")).toBeUndefined();
+    expect(
+      extractTwitchChannel("https://www.twitch.tv/k4sen/clip/CuteClipSlug"),
+    ).toBeNull();
+    expect(extractTwitchChannel("https://www.twitch.tv/drops")).toBeNull();
+    expect(extractTwitchChannel("https://www.twitch.tv/k4sen")).toBe("k4sen");
   });
 });
 
@@ -60,8 +67,16 @@ describe("Twitch VOD message offsets", () => {
         selector.includes("timestamp") || selector.includes("t=")
           ? stamp
           : null,
+      querySelectorAll: () => [],
     } as unknown as Element;
     expect(readTwitchVodOffsetSec(stamped)).toBe(90);
+
+    const headerStamped = {
+      querySelector: () => null,
+      querySelectorAll: () => [{ textContent: "2:17:16" }],
+      getAttribute: () => null,
+    } as unknown as Element;
+    expect(readTwitchVodOffsetSec(headerStamped)).toBe(8236);
 
     const undated = {
       querySelector: () => null,

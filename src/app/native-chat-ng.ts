@@ -1,11 +1,13 @@
 import { mapTwitchRole, readTwitchBadges } from "../shared/twitch-role";
 /**
  * Hide NG-matching lines inside official chat iframes / embeds.
- * 公式チャット iframe／埋め込み内で NG 該当行を隠す。
+ * 公式チャットの iframe や埋め込み表示で、NG フィルタに該当する投稿を隠す。
  */
 
 import { looksLikeCommand, type NormalizedMessage } from "../core/message";
 import { shouldDropMessage } from "../core/filter";
+import { extractMessageContent } from "../shared/message-content";
+import { readYouTubeAuthorRole } from "../shared/youtube-page";
 import {
   loadSettings,
   watchSettings,
@@ -84,32 +86,33 @@ export function startNativeChatNgHider(site: NativeChatNgSite): () => void {
     subtree: true,
   });
 
-  void loadSettings().then((next) => {
+  let settingsRevision = 0;
+  const applySettings = (next: ExtensionSettings) => {
+    settingsRevision += 1;
     settings = next.filter;
     enabled =
       next.enabled &&
       (site === "twitch" ? next.twitch.enabled : next.youtubeLive.enabled) &&
       next.filter.applyToNativeChat;
     apply();
-  });
-  const unwatch = watchSettings((next) => {
-    settings = next.filter;
-    enabled =
-      next.enabled &&
-      (site === "twitch" ? next.twitch.enabled : next.youtubeLive.enabled) &&
-      next.filter.applyToNativeChat;
-    apply();
-  });
+  };
+
+  const initialRevision = settingsRevision;
+  void loadSettings()
+    .then((next) => {
+      if (stopped || settingsRevision !== initialRevision) return;
+      applySettings(next);
+    })
+    .catch((error: unknown) => {
+      console.warn("[fce] native-chat-ng loadSettings failed", error);
+    });
+  const unwatch = watchSettings(applySettings);
 
   return () => {
     stopped = true;
     unwatch();
     observer.disconnect();
-    document.querySelectorAll(`[${HIDDEN_ATTR}]`).forEach((node) => {
-      if (node instanceof HTMLElement) {
-        restore(node);
-      }
-    });
+    clearHidden();
   };
 }
 
@@ -137,27 +140,29 @@ function parseNativeRow(
       element
         .querySelector("#author-name, #author-name span")
         ?.textContent?.trim() ?? "unknown";
-    const text =
-      element.querySelector("#message")?.textContent?.trim() ||
-      element.textContent?.trim() ||
-      "";
-    if (!text) {
+    const messageEl = element.querySelector("#message");
+    const { text: extractedText, segments } = extractMessageContent(
+      messageEl instanceof Element ? messageEl : null,
+    );
+    const text = messageEl
+      ? extractedText || messageEl.textContent?.trim() || ""
+      : element
+          .querySelector("#header-subtext, #header-primary-text")
+          ?.textContent?.trim() ||
+        element.textContent?.trim() ||
+        "";
+    const isPaidOrMembership =
+      element.tagName.toLowerCase() !== "yt-live-chat-text-message-renderer";
+    if (!text && segments.length === 0 && !isPaidOrMembership) {
       return null;
     }
-    const authorType = element.getAttribute("author-type") ?? "";
-    const role =
-      authorType === "owner" || authorType === "moderator"
-        ? (authorType as "owner" | "moderator")
-        : authorType === "member"
-          ? ("member" as const)
-          : ("viewer" as const);
     return {
       id: `ng-yt-${authorName}-${text.slice(0, 40)}`,
       site: "youtube-live",
       authorName,
-      text,
+      text: text || (segments.length > 0 ? "✦" : ""),
       timestampMs: Date.now(),
-      role,
+      role: readYouTubeAuthorRole(element),
       badges: [],
       isCommand: looksLikeCommand(text),
     };
@@ -169,13 +174,35 @@ function parseNativeRow(
       ?.textContent?.trim() ||
     element.querySelector(".chat-author__display-name")?.textContent?.trim() ||
     "unknown";
-  const text =
-    element
-      .querySelector('[data-a-target="chat-line-message-body"]')
-      ?.textContent?.trim() ||
-    element.querySelector(".text-fragment")?.textContent?.trim() ||
+  const rawLogin = element
+    .querySelector(".chat-author__intl-login")
+    ?.textContent?.trim();
+  const authorLogin = rawLogin?.replace(/^\((.*)\)$/, "$1").trim() || undefined;
+  const body =
+    element.querySelector('[data-a-target="chat-line-message-body"]') ??
+    element.querySelector(".vod-message__message") ??
+    element.querySelector(".video-chat__message");
+  // Match the adapter's full message, including emote names, rather than only
+  // the first text fragment. / 先頭断片だけでなく絵文字名を含む全文で判定する。
+  let text =
+    (body
+      ? extractMessageContent(body).text
+      : [
+          ...element.querySelectorAll(
+            '[data-a-target="chat-message-text"], .text-fragment',
+          ),
+        ]
+          .map((node) => extractMessageContent(node).text)
+          .join("")
+    ).trim() ||
     element.textContent?.trim() ||
     "";
+  if (
+    body?.classList.contains("video-chat__message") &&
+    body.firstElementChild?.textContent?.trim() === ":"
+  ) {
+    text = text.replace(/^:\s*/, "");
+  }
   if (!text) {
     return null;
   }
@@ -183,6 +210,7 @@ function parseNativeRow(
     id: `ng-tw-${authorName}-${text.slice(0, 40)}`,
     site: "twitch",
     authorName,
+    authorLogin,
     text,
     timestampMs: Date.now(),
     role: mapTwitchRole(readTwitchBadges(element), element),

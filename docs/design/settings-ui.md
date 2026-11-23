@@ -1,7 +1,7 @@
 # Settings UI Design / 設定画面デザイン
 
 Apply when designing or implementing **popup** and **options** (and related static pages such as privacy).  
-ポップアップ・オプション（および privacy 等の関連静的ページ）の設計・実装時に適用する。
+ポップアップ、設定画面、プライバシーポリシーなどの関連ページを設計・実装するときに適用する。
 
 Canonical type and icons (required):
 
@@ -115,7 +115,7 @@ Each control is a **row**, not a bare `<label>` stack (PreMiD grammar):
 - **Small enum** (2–4 values, e.g. display mode) → **segmented control** (SDO) **inline on the same row** as the title; do not place the control on a full-width row under the label.
 - **Number / continuum** → range or number input with **live value badge** and unit (`sec`, `px`, `%`).
 - **Long text** (NG list) → full-width textarea; use **placeholder** for format (“one per line”), not a hint paragraph.
-- **Conditional rows** (PreMiD `if` / SDO disabled section): hide or clearly disable dependents when parent mode/site forbids them (e.g. danmaku on `youtube-comments`).
+- **Conditional rows** (PreMiD `if` / SDO disabled section): hide or clearly disable dependents when parent mode/site forbids them.
 - Group related rows under a small section heading; skip a section heading when the page/nav title already names that single group.
 - Destructive or rare actions (reset position, clear NG, import/export) stay secondary (text/outline), never primary.
 
@@ -168,9 +168,7 @@ Danmaku on the video surface may keep its own stack (already product-tuned); do 
 | Filter | `filter_alt` |
 | Archive / sync | `sync` / `movie` |
 | YouTube Live | Brand silhouette (red play-in-rounded-rect) via `fce-site-icon--youtube-live` |
-| YouTube Comments | Brand silhouette (comment + play) via `fce-site-icon--youtube-comments` |
 | Twitch | Brand silhouette (glitch) via `fce-site-icon--twitch` |
-| Niconico | Brand silhouette (smile TV) via `fce-site-icon--niconico` |
 | Language | `translate` |
 | Privacy / legal | `policy` / `gavel` |
 | Save | `save` |
@@ -179,7 +177,7 @@ Danmaku on the video surface may keep its own stack (already product-tuned); do 
 
 - Icons are supporting — never the only affordance. Always pair with a text label in the sidebar and on rows.
 - **Site rows only:** use simplified brand-tinted silhouettes (`src/ui/site-icons.ts`) so services are scannable. Do not ship official trademark SVG packs or multicolored marketing logos. All other chrome stays Material Symbols.
-- In-player master toggle (`src/views/player-chrome`): product mark + ON/OFF badge in the right control cluster beside the seek/progress strip (YT / Twitch / ニコ生). Not a substitute for the popup enable switch.
+- In-player master toggle (`src/views/player-chrome`): product mark + ON/OFF badge in the right control cluster beside the seek/progress strip (YT / Twitch). Not a substitute for the popup enable switch.
 
 ---
 

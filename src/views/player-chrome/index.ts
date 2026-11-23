@@ -11,11 +11,40 @@ const BUTTON_ID = "fce-player-toggle";
 const STYLE_ID = "fce-player-chrome-style";
 
 /** Product mark: fullscreen corners + chat bubble / 製品マーク：四隅＋吹き出し */
-const TOGGLE_ICON_SVG = `<svg class="fce-player-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-  <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3.8 8.5V4.2h4.3M20.2 8.5V4.2h-4.3M3.8 15.5v4.3h4.3M20.2 15.5v4.3h-4.3"/>
-  <path fill="currentColor" d="M7 8h10a1.8 1.8 0 0 1 1.8 1.8v5.2A1.8 1.8 0 0 1 17 16.8h-5.6L7 20V8z"/>
-  <path fill="#061018" fill-opacity="0.28" d="M9.2 10.6h5.6v1.15H9.2zm0 2.35h3.9v1.15H9.2z"/>
-</svg>`;
+function createToggleIconSvg(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "fce-player-toggle-icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+
+  const corners = document.createElementNS(ns, "path");
+  corners.setAttribute("fill", "none");
+  corners.setAttribute("stroke", "currentColor");
+  corners.setAttribute("stroke-width", "1.8");
+  corners.setAttribute("stroke-linecap", "round");
+  corners.setAttribute("stroke-linejoin", "round");
+  corners.setAttribute(
+    "d",
+    "M3.8 8.5V4.2h4.3M20.2 8.5V4.2h-4.3M3.8 15.5v4.3h4.3M20.2 15.5v4.3h-4.3",
+  );
+
+  const bubble = document.createElementNS(ns, "path");
+  bubble.setAttribute("fill", "currentColor");
+  bubble.setAttribute(
+    "d",
+    "M7 8h10a1.8 1.8 0 0 1 1.8 1.8v5.2A1.8 1.8 0 0 1 17 16.8h-5.6L7 20V8z",
+  );
+
+  const lines = document.createElementNS(ns, "path");
+  lines.setAttribute("fill", "#061018");
+  lines.setAttribute("fill-opacity", "0.28");
+  lines.setAttribute("d", "M9.2 10.6h5.6v1.15H9.2zm0 2.35h3.9v1.15H9.2z");
+
+  svg.append(corners, bubble, lines);
+  return svg;
+}
 
 export type PlayerChromeSite = "youtube" | "twitch";
 
@@ -27,6 +56,7 @@ export type PlayerChromeSite = "youtube" | "twitch";
 export function startPlayerChrome(site: PlayerChromeSite): () => void {
   let disposed = false;
   let settings: ExtensionSettings | null = null;
+  let settingsRevision = 0;
   let injectTimer: ReturnType<typeof setTimeout> | undefined;
 
   const scheduleInject = () => {
@@ -46,25 +76,33 @@ export function startPlayerChrome(site: PlayerChromeSite): () => void {
     subtree: true,
   });
 
-  const unwatch = watchSettings((next) => {
+  const apply = (next: ExtensionSettings) => {
+    const requested = ++settingsRevision;
     settings = next;
-    void ensureLocale(next.uiLocale).then(() => {
-      if (!disposed && settings === next) {
-        ensureButton(site, next);
-      }
-    });
-  });
+    void ensureLocale(next.uiLocale)
+      .then(() => {
+        if (!disposed && requested === settingsRevision && settings === next) {
+          ensureButton(site, next);
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn("[fce] player-chrome locale failed", error);
+      });
+  };
 
-  void loadSettings().then(async (initial) => {
-    if (disposed) {
-      return;
-    }
-    settings = initial;
-    await ensureLocale(initial.uiLocale);
-    if (!disposed) {
-      ensureButton(site, initial);
-    }
-  });
+  const unwatch = watchSettings(apply);
+
+  const initialRevision = settingsRevision;
+  void loadSettings()
+    .then((initial) => {
+      if (disposed || settingsRevision !== initialRevision) {
+        return;
+      }
+      apply(initial);
+    })
+    .catch((error: unknown) => {
+      console.warn("[fce] player-chrome loadSettings failed", error);
+    });
 
   const onFullscreen = () => scheduleInject();
   document.addEventListener("fullscreenchange", onFullscreen);
@@ -99,7 +137,7 @@ function ensureButton(
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void toggleEnabled();
+      void toggleEnabled().catch(() => undefined);
     });
     mountButton(mount, button, site);
   } else if (button.parentElement !== mount) {
@@ -118,7 +156,7 @@ function classNameForSite(site: PlayerChromeSite): string {
 
 /**
  * Prefer left of settings / fullscreen so the control sits in the familiar cluster.
- * 設定・全画面の左に置き、いつもの右コントロール群に乗せる。
+ * 設定・全画面の左に置き、プレーヤー右側のコントロールに追加する。
  */
 function mountButton(
   mount: HTMLElement,
@@ -178,7 +216,11 @@ function applyButtonState(
     }
     return;
   }
-  button.innerHTML = `${TOGGLE_ICON_SVG}<span class="fce-player-toggle-badge" aria-hidden="true">${enabled ? "ON" : "OFF"}</span>`;
+  const badge = document.createElement("span");
+  badge.className = "fce-player-toggle-badge";
+  badge.setAttribute("aria-hidden", "true");
+  badge.textContent = enabled ? "ON" : "OFF";
+  button.replaceChildren(createToggleIconSvg(), badge);
 }
 
 function resolveControlsMount(site: PlayerChromeSite): HTMLElement | null {

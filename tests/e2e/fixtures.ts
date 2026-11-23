@@ -8,9 +8,10 @@ import {
 
 const root = path.resolve(import.meta.dirname, "../..");
 const fixtureHtml = fs.readFileSync(
-  path.join(root, "tests/fixtures/youtube-comments.html"),
+  path.join(root, "tests/fixtures/youtube-live.html"),
   "utf8",
 );
+const liveChatFixtureHtml = `<!doctype html><html><body><div id="items"><yt-live-chat-text-message-renderer id="first"><span id="author-name">Fixture viewer</span><span id="message">Synthetic hello message</span></yt-live-chat-text-message-renderer><yt-live-chat-text-message-renderer id="blocked"><span id="author-name">Fixture viewer</span><span id="message">Synthetic blocked marker</span></yt-live-chat-text-message-renderer></div></body></html>`;
 export const fixtureUrl = "https://www.youtube.com/watch?v=harness-fixture";
 
 declare const chrome: {
@@ -23,7 +24,7 @@ declare const chrome: {
   };
 };
 
-/** Exercise real extension storage, not a fake browser API / 実際の拡張storageへ設定を書き込む。 */
+/** Exercise real extension storage, not a fake browser API / 実際の拡張機能のストレージに設定を書き込む。 */
 export async function setSettings(
   worker: Worker,
   patch: Partial<ExtensionSettings>,
@@ -104,12 +105,28 @@ export const test = base.extend<{
       );
       page.on("pageerror", (error) => pageErrors.push(error.message));
     };
+    const observeWorker = (worker: import("@playwright/test").Worker) => {
+      worker.on("console", (message) =>
+        consoleEvents.push({
+          level: message.type(),
+          text: message.text(),
+          url: worker.url(),
+        }),
+      );
+    };
     context.on("page", observe);
     context.pages().forEach(observe);
+    context.on("serviceworker", observeWorker);
+    context.serviceWorkers().forEach(observeWorker);
     await context.route("**/*", async (route) => {
       const url = route.request().url();
       if (url === fixtureUrl)
         return route.fulfill({ contentType: "text/html", body: fixtureHtml });
+      if (url.startsWith("https://www.youtube.com/live_chat?"))
+        return route.fulfill({
+          contentType: "text/html",
+          body: liveChatFixtureHtml,
+        });
       if (/^(chrome-extension:|data:|blob:|about:)/.test(url))
         return route.continue();
       blockedRequests.push(url);

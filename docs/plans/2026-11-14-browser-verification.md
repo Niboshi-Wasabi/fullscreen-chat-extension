@@ -2,7 +2,7 @@
 
 ## 目的・背景
 
-ユーザーの「次どうぞ」に基づき、ビルド成功だけでは検出できない拡張の実行・UI・ライフサイクルをChromium上で検証する。[全体計画](2026-11-14-harness-foundation.md)と[品質基準](../quality/standards.md)を参照。
+ユーザーの「次どうぞ」に基づき、拡張機能を Chromium 上で動かし、ビルド時には確認できない UI とライフサイクルを検証する。[全体計画](2026-11-14-harness-foundation.md)と[品質基準](../quality/standards.md)を参照。
 
 ## 対象範囲・対象外
 

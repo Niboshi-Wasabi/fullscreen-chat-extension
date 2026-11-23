@@ -1,4 +1,5 @@
 import type { MessageRole } from "../core/message";
+import { isSafeHttpsImageUrl } from "./safe-image-url";
 
 export interface TwitchBadgeIcon {
   alt: string;
@@ -20,7 +21,7 @@ export function readTwitchBadgeIcons(element: Element): TwitchBadgeIcon[] {
         return null;
       }
       // Duck-type img — node unit tests have no HTMLImageElement.
-      // node 単体テストに HTMLImageElement が無いのでダックタイプする。
+      // Node.js の単体テストでも使えるよう、HTMLImageElement の型で判定せずにプロパティを確認する。
       const maybeImg = badge as {
         currentSrc?: string;
         src?: string;
@@ -37,7 +38,8 @@ export function readTwitchBadgeIcons(element: Element): TwitchBadgeIcon[] {
         maybeImg.currentSrc !== undefined || maybeImg.src !== undefined
           ? maybeImg
           : nested;
-      const src = (img?.currentSrc || img?.src || "").trim();
+      const rawSrc = (img?.currentSrc || img?.src || "").trim();
+      const src = rawSrc && isSafeHttpsImageUrl(rawSrc) ? rawSrc : "";
       return src ? { alt, src } : { alt };
     })
     .filter((badge): badge is TwitchBadgeIcon => Boolean(badge));
@@ -48,7 +50,10 @@ export function readTwitchBadges(element: Element): string[] {
 }
 
 export function mapTwitchRole(badges: string[], element: Element): MessageRole {
-  const blob = `${badges.join(" ")} ${element.className}`.toLowerCase();
+  const cls =
+    element.getAttribute?.("class") ??
+    (typeof element.className === "string" ? element.className : "");
+  const blob = `${badges.join(" ")} ${cls}`.toLowerCase();
   if (blob.includes("broadcaster") || blob.includes("配信者")) return "owner";
   if (blob.includes("moderator") || blob.includes("モデレーター"))
     return "moderator";

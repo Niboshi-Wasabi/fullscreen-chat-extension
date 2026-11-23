@@ -85,6 +85,19 @@ export function checkManifest(manifest, browser, policy, directory, version) {
     manifest.options_ui?.open_in_tab !== true
   )
     fail("popup/options entry point changed");
+  if (policy.commands) {
+    const commands = manifest.commands ?? {};
+    if (!equalSets(Object.keys(commands), policy.commands.names))
+      fail("manifest commands changed");
+    const suggestedCount = Object.values(commands).filter(
+      (entry) => entry && typeof entry === "object" && entry.suggested_key,
+    ).length;
+    if (suggestedCount > policy.commands.maxSuggestedKeys)
+      fail("manifest commands exceeded suggested_key limit");
+    for (const unmapped of policy.commands.unmapped ?? [])
+      if (commands[unmapped]?.suggested_key)
+        fail(`command ${unmapped} must remain unmapped by default`);
+  }
   for (const asset of assets.filter(Boolean)) {
     const resolved = path.resolve(directory, asset);
     const relative = path.relative(directory, resolved);
@@ -100,7 +113,7 @@ export function checkManifest(manifest, browser, policy, directory, version) {
   return errors;
 }
 
-/** Inspect both build outputs; missing output is a failure / 両ブラウザの出力を検査し欠落も失敗にする。 */
+/** Inspect both build outputs; missing output is a failure / 両ブラウザの出力を検査し、出力がなければ失敗とする。 */
 export function checkManifests(root) {
   const policy = JSON.parse(
     fs.readFileSync(

@@ -111,7 +111,7 @@ shared/
 - `video-offset-time-msec` / Twitch VOD（`t=`・時計表示・再生時計フォールバック）から `videoOffsetSec` を付与
 - VOD ページのチャンネル login 解決（エモート）。公式チャット別窓／埋め込みは無し
 - 再生時計（`timeupdate` / `seeked`）で弾幕・自前リストを `syncOffsetSec` / `maxSkewSec` に合わせて解放
-- オプション UI でオフセット／許容ズレを変更可能
+- 設定画面でオフセットと許容するずれを変更できる
 
 ### Phase 7 — ポリッシュとストア準備（完了）
 
@@ -126,7 +126,7 @@ shared/
 
 settings-inventory §6 のページ内サーフェス。
 
-1. **プレイヤーボタン** — YT `.ytp-right-controls` / Twitch 右コントロール群に `enabled` トグル。`enabled: false` でもボタンは残る
+1. **プレーヤーボタン** — YT `.ytp-right-controls` / Twitch 右コントロール群に `enabled` トグル。`enabled: false` でもボタンは残る
 2. **パネル内ギア** — ハンドルから不透明度・フォントサイズを即時保存し、Options を開ける
 3. 文言は最小。`uiLocale` / i18n 共用
 
@@ -145,7 +145,7 @@ settings-inventory §6 のページ内サーフェス。
 - `src/shared/i18n/locale-meta.ts` + `locales/*.json`（44）
 - 言語セレクトは**ポップアップ**（`listLocaleOptions()`、自称ラベル固定）。オプションからは除外
 - ar / he / fa は `dir=rtl`
-- content script は en/ja のみ先行同梱（他言語は extension ページで遅延読込）。ホストページ UI の他言語は英語フォールバック（次: `runtime.getURL`）
+- content script は en/ja のみ先行同梱（他言語は extension ページで遅延読み込み）。ホストページ UI の他言語は英語フォールバック（次: `runtime.getURL`）
 
 ### Phase 9 — ストア提出準備（完了）
 
@@ -157,7 +157,7 @@ settings-inventory §6 のページ内サーフェス。
 ### Phase 10 — ニコニコ生放送（パネル初版）（完了）
 
 1. `adapters/niconico-live` — 公式コメント一覧 DOM 監視（NDGR は天井コメント）
-2. `niconicoLive.enabled`・host `live`/`live2.nicovideo.jp`・ポップアップ行・プレイヤー付近トグル
+2. `niconicoLive.enabled`・host `live`/`live2.nicovideo.jp`・ポップアップ行・プレーヤー付近トグル
 3. 弾幕／拡張別窓は Phase 11。タイムシフト同期は後続
 
 ### Phase 11 — 設定バックアップ＋ニコ生弾幕／別窓（完了）

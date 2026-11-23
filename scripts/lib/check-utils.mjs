@@ -19,7 +19,7 @@ export function isMain(url) {
   );
 }
 
-/** Print findings and mark failures via exitCode / 結果を出力し失敗時の終了値を設定。 */
+/** Print findings and mark failures via exitCode / 結果を出力し失敗時の終了コードを設定。 */
 export function report(name, errors, details = {}) {
   console.log(
     JSON.stringify(
