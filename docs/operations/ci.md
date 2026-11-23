@@ -46,7 +46,7 @@ pnpmの公開レジストリへの照会を利用。正常なJSONと完全な件
 
 [verify.yml](../../.github/workflows/verify.yml)はPR・push・手動起動を対象に、Windows 2025 / Node 22.23.2 / pnpm 11.9.0でverify:ciを実行する。シークレット不要、contents: read、checkout認証情報非保持、fetch-depth: 0、Actionは確認したコミットSHA固定。パス条件で必須チェックを省略しない。concurrencyで古い同一参照の実行を中止し、ジョブに時間上限を付ける。
 
-Actionlintは構文と既知入力を検査し、追加の[ポリシー検査](../../scripts/check-workflows.mjs)でイベント、権限、SHA、無条件の必須コマンド、明示的成果物の範囲を確認。ShellCheck/Pyflakesは使用せず、PowerShellコマンドは記録した3コマンドに限定する。これは任意の悪意ある変更に耐える独立した保護装置ではなく、ポリシー自身の変更はレビューが必要。
+Actionlintは構文と既知入力を検査し、追加の[ポリシー検査](../../scripts/check-workflows.mjs)でイベント、権限、SHA、無条件の必須コマンド、明示的成果物の範囲を確認。対象は `verify.yml`（`contents: read` 固定）と Draft Release 用の [release.yml](../../.github/workflows/release.yml)（`push.tags: ["v*"]` と `workflow_dispatch` のみ、`contents: write`、組み込み `github.token` のみ使用、カスタムシークレット禁止）の 2 本に限定する。Draft 配布設計は [ADR 0005](../decisions/0005-github-release-harness.md) と [リリース手順](release.md) を参照。ShellCheck/Pyflakesは使用せず、PowerShellコマンドは記録した定義済みコマンド（`verify.yml` の 3 コマンド、`release.yml` の 6 コマンド）に限定する。これは任意の悪意ある変更に耐える独立した保護装置ではなく、ポリシー自身の変更はレビューが必要。
 
 診断summary・JUnitとE2EのJSON/JUnit・テスト別画像/trace・HTMLレポートは失敗時も可能な範囲で保存し、両ビルドは全チェック成功時のみ保存する。E2Eは合成データだけを扱い、プロファイルやログイン済みの実サイトの記録はアップロードしない。成果物保存期間は7日。ハーネス全ディレクトリや秘密情報のrawレポートはアップロードしない。提出・デプロイは自動化しない。
 

@@ -4,7 +4,10 @@ import { randomBytes, createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { assessAudit } from "../../scripts/check-audit.mjs";
-import { workflowPolicy } from "../../scripts/check-workflows.mjs";
+import {
+  releaseWorkflowPolicy,
+  workflowPolicy,
+} from "../../scripts/check-workflows.mjs";
 import { verifyDigest } from "../../scripts/setup-ci-tools.mjs";
 import {
   scanSecrets,
@@ -113,6 +116,67 @@ describe("workflow trust boundary", () => {
       expect.arrayContaining([
         expect.stringContaining("separate"),
         expect.stringContaining("Do not expose secrets"),
+      ]),
+    );
+  });
+
+  it("rejects indirect secrets expressions such as toJSON(secrets)", () => {
+    const value = workflow();
+    value.jobs.verify.env = { LEAK: "${{ toJSON(secrets) }}" };
+    expect(workflowPolicy(value)).toContainEqual(
+      expect.stringContaining("Do not expose secrets"),
+    );
+  });
+});
+
+describe("release workflow trust boundary", () => {
+  const workflow = () =>
+    parse(
+      fs.readFileSync(
+        path.join(repository, ".github/workflows/release.yml"),
+        "utf8",
+      ),
+    );
+
+  it("accepts the authored draft release workflow", () => {
+    expect(releaseWorkflowPolicy(workflow())).toEqual([]);
+  });
+
+  it("rejects PR triggers, branch pushes, secrets and skipped verification gates", () => {
+    const value = workflow();
+    value.on.pull_request = {};
+    value.on.push.branches = ["main"];
+    value.permissions.packages = "write";
+    value.jobs["release-draft"].steps[4].run = "pnpm.cmd release:pack";
+    value.jobs["release-draft"].steps[7].env.STORE_SECRET =
+      "${{ secrets.STORE_SECRET }}";
+    value.jobs["release-draft"].steps[8].with.path = ".";
+    value.jobs["release-draft"].steps[0].uses = "actions/checkout@main";
+    expect(releaseWorkflowPolicy(value)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("version tag push"),
+        expect.stringContaining("v* tags only"),
+        expect.stringContaining("contents: write"),
+        expect.stringContaining("verify:ci, release:pack"),
+        expect.stringContaining("custom or store secrets"),
+        expect.stringContaining("explicit release archives"),
+        expect.stringContaining("full action SHA"),
+      ]),
+    );
+  });
+
+  it("rejects indirect secrets, cancel-in-progress and missing github.token", () => {
+    const value = workflow();
+    value.concurrency["cancel-in-progress"] = true;
+    value.jobs["release-draft"].steps[7].env = {
+      GH_TOKEN: "custom",
+      LEAK: "${{ toJSON(secrets) }}",
+    };
+    expect(releaseWorkflowPolicy(value)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("cancel in-progress"),
+        expect.stringContaining("github.token"),
+        expect.stringContaining("custom or store secrets"),
       ]),
     );
   });

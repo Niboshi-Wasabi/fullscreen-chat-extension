@@ -27,6 +27,58 @@ const diagnostics = [
   ".harness-artifacts/e2e-report/",
 ];
 
+const releaseCommands = [
+  "npm.cmd install --global pnpm@11.9.0 --ignore-scripts",
+  "pnpm.cmd install --frozen-lockfile --ignore-scripts",
+  "pnpm.cmd verify:ci",
+  "pnpm.cmd release:pack",
+  "pnpm.cmd check:release:pack",
+  "pnpm.cmd release:draft",
+];
+const releaseArtifacts = [
+  ".output/fullscreen-chat-extension-*-chrome.zip",
+  ".output/fullscreen-chat-extension-*-firefox.zip",
+  ".output/SHA256SUMS.txt",
+  ".harness-artifacts/release-status.json",
+];
+
+function hasSecretsExpression(workflow) {
+  return /\$\{\{[^}]*\bsecrets\b/.test(JSON.stringify(workflow));
+}
+
+function checkFixedActions(steps, errors) {
+  for (const step of steps.filter((entry) => entry.uses)) {
+    const [name, sha] = step.uses.split("@");
+    if (name !== "actions/upload-artifact" && Object.hasOwn(step, "if"))
+      errors.push("Checkout and Node setup must be unconditional");
+    if (
+      !actions[name] ||
+      !/^[a-f0-9]{40}$/.test(sha ?? "") ||
+      actions[name] !== sha
+    )
+      errors.push(`Use a reviewed full action SHA: ${step.uses}`);
+    if (
+      name === "actions/checkout" &&
+      (step.with?.["persist-credentials"] !== false ||
+        step.with?.["fetch-depth"] !== 0)
+    )
+      errors.push(
+        "Checkout requires fetch-depth: 0 and persist-credentials: false",
+      );
+    if (
+      name === "actions/setup-node" &&
+      (step.with?.["node-version"] !== "22.23.2" ||
+        step.with?.["package-manager-cache"] !== false)
+    )
+      errors.push(
+        "Use pinned Node 22.23.2 and disable automatic package-manager caching",
+      );
+  }
+  for (const name of Object.keys(actions))
+    if (!steps.some((step) => step.uses?.startsWith(`${name}@`)))
+      errors.push(`Missing required action ${name}`);
+}
+
 /** Enforce this project's CI trust boundary in addition to Actionlint / 構文に加えて、権限と必須の検証ステップも確認する。 */
 export function workflowPolicy(workflow) {
   const errors = [];
@@ -49,7 +101,7 @@ export function workflowPolicy(workflow) {
       errors.push(
         "Do not filter required workflow triggers; every PR needs a check",
       );
-  if (/\$\{\{\s*secrets[.[\s]/.test(JSON.stringify(workflow)))
+  if (hasSecretsExpression(workflow))
     errors.push("Do not expose secrets to PR workflows");
   const jobs = workflow.jobs;
   if (!jobs || Object.keys(jobs).length !== 1 || !jobs.verify)
@@ -92,36 +144,7 @@ export function workflowPolicy(workflow) {
     steps.some((step) => step["continue-on-error"])
   )
     errors.push("Mandatory checks must not continue on error");
-  for (const step of steps.filter((entry) => entry.uses)) {
-    const [name, sha] = step.uses.split("@");
-    if (name !== "actions/upload-artifact" && Object.hasOwn(step, "if"))
-      errors.push("Checkout and Node setup must be unconditional");
-    if (
-      !actions[name] ||
-      !/^[a-f0-9]{40}$/.test(sha ?? "") ||
-      actions[name] !== sha
-    )
-      errors.push(`Use a reviewed full action SHA: ${step.uses}`);
-    if (
-      name === "actions/checkout" &&
-      (step.with?.["persist-credentials"] !== false ||
-        step.with?.["fetch-depth"] !== 0)
-    )
-      errors.push(
-        "Checkout requires fetch-depth: 0 and persist-credentials: false",
-      );
-    if (
-      name === "actions/setup-node" &&
-      (step.with?.["node-version"] !== "22.23.2" ||
-        step.with?.["package-manager-cache"] !== false)
-    )
-      errors.push(
-        "Use pinned Node 22.23.2 and disable automatic package-manager caching",
-      );
-  }
-  for (const name of Object.keys(actions))
-    if (!steps.some((step) => step.uses?.startsWith(`${name}@`)))
-      errors.push(`Missing required action ${name}`);
+  checkFixedActions(steps, errors);
   const uploads = steps.filter((step) =>
     step.uses?.startsWith("actions/upload-artifact@"),
   );
@@ -164,6 +187,124 @@ export function workflowPolicy(workflow) {
   return errors;
 }
 
+/** Enforce trust boundaries on the Draft GitHub Release workflow / Draft Release 生成ワークフローのトリガー・権限・署名シークレット禁止・成果物を検証。 */
+export function releaseWorkflowPolicy(workflow) {
+  const errors = [];
+  if (!workflow || typeof workflow !== "object")
+    return ["Workflow must be a YAML object"];
+  if (
+    JSON.stringify(workflow.permissions) !==
+    JSON.stringify({ contents: "write" })
+  )
+    errors.push("Release workflow permissions must be exactly contents: write");
+  if (
+    JSON.stringify(Object.keys(workflow.on ?? {}).sort()) !==
+    JSON.stringify(["push", "workflow_dispatch"])
+  )
+    errors.push(
+      "Release workflow may only run on version tag push and workflow_dispatch",
+    );
+  const pushConfig = workflow.on?.push;
+  if (
+    !pushConfig ||
+    typeof pushConfig !== "object" ||
+    JSON.stringify(Object.keys(pushConfig)) !== JSON.stringify(["tags"]) ||
+    JSON.stringify(pushConfig.tags) !== JSON.stringify(["v*"])
+  )
+    errors.push(
+      "Release workflow push trigger must be limited to v* tags only",
+    );
+  if (hasSecretsExpression(workflow))
+    errors.push("Do not expose custom or store secrets in release workflows");
+  if (workflow.concurrency?.["cancel-in-progress"] !== false)
+    errors.push("Do not cancel in-progress draft release runs");
+
+  const jobs = workflow.jobs;
+  if (!jobs || Object.keys(jobs).length !== 1 || !jobs["release-draft"])
+    return [
+      ...errors,
+      "Expected one release-draft job in the release workflow",
+    ];
+  const job = jobs["release-draft"];
+  if (
+    job.name !== "release-draft-windows" ||
+    job["runs-on"] !== "windows-2025" ||
+    Object.hasOwn(job, "if") ||
+    job.permissions
+  )
+    errors.push(
+      "Keep the unconditional release-draft-windows job on windows-2025 without overridden permissions",
+    );
+  if (
+    !Number.isInteger(job["timeout-minutes"]) ||
+    job["timeout-minutes"] < 1 ||
+    job["timeout-minutes"] > 30
+  )
+    errors.push("Set a release job timeout between 1 and 30 minutes");
+  if (job.defaults?.run?.shell !== "pwsh")
+    errors.push("Use the recorded PowerShell runner shell");
+
+  const steps = Array.isArray(job.steps) ? job.steps : [];
+  const runs = steps.filter((step) => step.run);
+  if (
+    JSON.stringify(runs.map((step) => step.run)) !==
+      JSON.stringify(releaseCommands) ||
+    runs.some(
+      (step) =>
+        Object.hasOwn(step, "if") || step["continue-on-error"] || step.shell,
+    )
+  )
+    errors.push(
+      "Run verify:ci, release:pack, check:release:pack and release:draft unconditionally in order",
+    );
+  const draftStep = runs.find((step) => step.run === "pnpm.cmd release:draft");
+  if (draftStep?.env?.GH_TOKEN !== "${{ github.token }}")
+    errors.push("Pass built-in github.token to GH_TOKEN for release:draft");
+  if (
+    job["continue-on-error"] ||
+    steps.some((step) => step["continue-on-error"])
+  )
+    errors.push("Release workflow steps must not continue on error");
+  checkFixedActions(steps, errors);
+
+  const uploads = steps.filter((step) =>
+    step.uses?.startsWith("actions/upload-artifact@"),
+  );
+  const allowedPaths = new Set(releaseArtifacts);
+  for (const step of uploads) {
+    const paths = String(step.with?.path ?? "")
+      .trim()
+      .split(/\s+/);
+    if (
+      step.if !== "${{ success() }}" ||
+      step.with?.["if-no-files-found"] !== "error"
+    )
+      errors.push("Upload release artifacts only after full success");
+    if (
+      paths.some((entry) => !allowedPaths.has(entry)) ||
+      step.with?.["include-hidden-files"] !== true ||
+      step.with?.["retention-days"] !== 7
+    )
+      errors.push(
+        "Upload only explicit release archives/checksums/status with hidden files and 7-day retention",
+      );
+  }
+  const saved = uploads.flatMap((step) =>
+    String(step.with?.path ?? "")
+      .trim()
+      .split(/\s+/),
+  );
+  for (const required of allowedPaths)
+    if (!saved.includes(required))
+      errors.push(`Missing release artifact path ${required}`);
+  return errors;
+}
+
+const workflowPolicies = {
+  "verify.yml": workflowPolicy,
+  "release.yml": releaseWorkflowPolicy,
+};
+
 if (isMain(import.meta.url)) {
   const root = path.resolve(import.meta.dirname, "..");
   const destination = path.join(
@@ -176,10 +317,15 @@ if (isMain(import.meta.url)) {
     const files = fs
       .readdirSync(directory)
       .filter((file) => /\.ya?ml$/.test(file))
+      .sort()
       .map((file) => path.join(directory, file));
-    if (files.length !== 1 || path.basename(files[0]) !== "verify.yml")
+    const names = files.map((file) => path.basename(file));
+    if (
+      JSON.stringify(names) !==
+      JSON.stringify(Object.keys(workflowPolicies).sort())
+    )
       throw new Error(
-        "Review workflow-policy changes before introducing additional workflows",
+        "Review workflow-policy changes before introducing or removing workflows",
       );
     const errors = [];
     for (const file of files) {
@@ -188,7 +334,7 @@ if (isMain(import.meta.url)) {
       });
       if (parsed.errors.length)
         errors.push(...parsed.errors.map((error) => error.message));
-      else errors.push(...workflowPolicy(parsed.toJS()));
+      else errors.push(...workflowPolicies[path.basename(file)](parsed.toJS()));
     }
     const checked = spawnSync(
       toolPath("actionlint"),

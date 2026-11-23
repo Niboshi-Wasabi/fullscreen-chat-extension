@@ -20,7 +20,9 @@
 | Chromiumビルド | `pnpm.cmd build`                                     | バンドル生成。実機動作は保証しない                                                                                     |
 | Firefoxビルド  | `pnpm.cmd build:firefox`                             | Firefox向け生成。実機動作は保証しない                                                                                  |
 | manifest       | `pnpm.cmd check:manifests`                           | 両ビルドのMV3、版、記録した権限/ホスト/実行構成、参照資産、Firefox識別・宣言。先に両ビルドが必要                       |
-| workflow       | `pnpm.cmd check:workflows`                           | Actionlint構文/入力と、プロジェクトのイベント・権限・固定SHA・必須ゲート・成果物範囲                                   |
+| workflow       | `pnpm.cmd check:workflows`                           | Actionlint構文/入力と、`verify.yml` / `release.yml` のイベント・権限・固定SHA・必須ゲート・成果物範囲               |
+| 配布ZIP整合    | `pnpm.cmd check:release` / `pnpm.cmd check:release:pack`（任意） | 生成済み両ZIP内のmanifest・資産・ビルド一致・`SHA256SUMS.txt`生成。未生成時は `check:release:pack` で必須失敗     |
+| Release乖離監視 | `pnpm.cmd check:release:drift`（任意・オンライン）   | `gh api` で `origin/main` と GitHub Release（公開済み・Draft・ZIPアセット・本文SHA-256）の乖離を検知                 |
 | 脆弱性         | `pnpm.cmd check:audit`                               | 開発用依存含む全件照会。通信/解析失敗や既知の問題を不合格                                                              |
 | 秘密情報       | `pnpm.cmd check:secrets`                             | 著者管理ファイル、利用可能なら取得済み全履歴。Git未配置の履歴はunavailable                                             |
 | 拡張E2E        | `pnpm.cmd verify:browser` / `pnpm.cmd verify:chrome` | 同梱Chromiumまたは明示的なChrome。合成YouTube・popup/options、明暗axe、アイコン表示。範囲はブラウザ手順を参照          |

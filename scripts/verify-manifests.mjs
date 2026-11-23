@@ -9,7 +9,14 @@ const equalSets = (left, right) =>
   JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
 
 /** Compare one bundle to the recorded policy and existing assets / 1ビルドの比較基準と実資産を検査。 */
-export function checkManifest(manifest, browser, policy, directory, version) {
+export function checkManifest(
+  manifest,
+  browser,
+  policy,
+  directory,
+  version,
+  assetExists,
+) {
   const errors = [];
   const fail = (message) => errors.push(`${browser}: ${message}`);
   if (manifest.manifest_version !== 3 || manifest.version !== version)
@@ -101,14 +108,15 @@ export function checkManifest(manifest, browser, policy, directory, version) {
   for (const asset of assets.filter(Boolean)) {
     const resolved = path.resolve(directory, asset);
     const relative = path.relative(directory, resolved);
-    if (
+    const outside =
       path.isAbsolute(relative) ||
       relative === ".." ||
-      relative.startsWith(`..${path.sep}`) ||
-      !fs.existsSync(resolved) ||
-      !fs.statSync(resolved).isFile()
-    )
-      fail(`missing or unsafe bundled asset ${asset}`);
+      relative.startsWith(`..${path.sep}`);
+    const present =
+      typeof assetExists === "function"
+        ? assetExists(asset.replace(/\\/g, "/"))
+        : fs.existsSync(resolved) && fs.statSync(resolved).isFile();
+    if (outside || !present) fail(`missing or unsafe bundled asset ${asset}`);
   }
   return errors;
 }
