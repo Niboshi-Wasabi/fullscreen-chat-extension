@@ -131,10 +131,28 @@
         </div>
       </div>
 
-      <button id="openOptions" class="fce-btn fce-btn-secondary" type="button">
-        <span class="ms ms-sm" aria-hidden="true">settings</span>
-        <span data-i18n="openOptions">Open options</span>
-      </button>
+      <div class="fce-popup-actions">
+        <button
+          id="openOptions"
+          class="fce-btn fce-btn-secondary"
+          type="button"
+        >
+          <span class="ms ms-sm" aria-hidden="true">settings</span>
+          <span data-i18n="openOptions">Options</span>
+        </button>
+        <a
+          id="githubLink"
+          class="fce-btn fce-btn-secondary"
+          href="https://github.com/Niboshi-Wasabi/fullscreen-chat-extension"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-i18n-title="githubRepoTitle"
+          aria-label="Open GitHub repository"
+        >
+          <span class="ms ms-sm" aria-hidden="true">open_in_new</span>
+          <span data-i18n="githubRepo">GitHub</span>
+        </a>
+      </div>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>

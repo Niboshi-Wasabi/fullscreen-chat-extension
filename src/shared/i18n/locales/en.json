@@ -114,5 +114,7 @@
   "bridgePickReaction": "Pick a reaction message",
   "bridgeSuggestEstimate": "Suggested +{sec}s",
   "bridgeApply": "Apply",
-  "bridgeCancel": "Cancel"
+  "bridgeCancel": "Cancel",
+  "githubRepo": "GitHub",
+  "githubRepoTitle": "Open GitHub repository"
 }
