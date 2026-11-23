@@ -33,8 +33,24 @@
 
 ## パッケージ
 
-既存コマンド `pnpm.cmd zip` / `pnpm.cmd zip:firefox` で生成する。生成されたmanifestの権限・ホスト・背景処理・gecko ID・同梱フォント・アイコン・バージョンを検査し、対象ZIPのハッシュを記録する。
+既存コマンド `pnpm.cmd zip` / `pnpm.cmd zip:firefox`（または統合入口 `pnpm.cmd release:pack`）で生成する。`pnpm.cmd check:release:pack` で両 ZIP 内の manifest の権限・ホスト・背景処理・gecko ID・同梱フォント・アイコン・バージョンおよび未圧縮ビルドとの一致を検査し、`.output/SHA256SUMS.txt` を出力する。
 
 検証したパッケージと提出物を一致させる。コード・設定・依存・生成物が変わったら影響する検証とレビューを更新する。成果物の存在だけで公開可能としない。
+
+## GitHub Release での配布と監視
+
+PR マージや配布準備の節目に、本番ブランチ `main` と GitHub Release（公開済みおよび Draft）の乖離を監視し、パッケージ整合を検査する。構成判断の正本は [ADR 0005](../decisions/0005-github-release-harness.md)。
+
+| コマンド / 手段 | 役割 |
+|---|---|
+| `pnpm.cmd check:release` | 生成済み ZIP（存在時）の manifest・同梱資産・ビルド一致を検査 |
+| `pnpm.cmd release:pack` | `wxt zip` と `wxt zip -b firefox` を実行し両配布 ZIP を生成 |
+| `pnpm.cmd check:release:pack` | 両 ZIP 必須で検証し `.output/SHA256SUMS.txt` を生成 |
+| `pnpm.cmd check:release:drift` | `origin/main` と GitHub Release（公開済み・Draft・本文 SHA-256）の乖離を確認 |
+| `node scripts/publish-draft-release.mjs --dry-run` | リリースノート案・Draft 作成/更新計画をローカルでプレビュー（変更なし） |
+| [release.yml](../../.github/workflows/release.yml) | `v*` タグまたは手動 `workflow_dispatch` で `verify:ci` 通過後に ZIP 検証と Draft Release 作成/更新を実行 |
+
+- **PR マージ時の監視**: `main` へ PR をマージした際は `pnpm.cmd check:release:drift` を実行し、`up-to-date` 以外（`drift`、`draft-only`、`draft-stale`、`no-release`、`unknown`）なら未配布差分、古い Draft、またはタグ基準未確認の状態がある旨を報告する。
+- **Draft 生成・公開の境界**: `release.yml` と `pnpm.cmd release:draft` は常に `--draft`（下書き）としてのみ作成・更新し、公開済みリリースの上書きは拒否する。タグ `v<version>` の作成、`workflow_dispatch` の実行、Draft Release の公開（`draft=false` への変更）、および Chrome Web Store / Firefox AMO への提出は人間が明示的に許可・操作する。
 
 公開はChrome Web Store / Firefox AMOへ人間が提出する方式から開始。認証情報をリポジトリへ保存しない。自動公開は別ADRと承認を経て導入する。

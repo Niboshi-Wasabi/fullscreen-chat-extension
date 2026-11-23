@@ -39,7 +39,12 @@
     "real-site:init": "node scripts/real-site-run.mjs init",
     "real-site:finalize": "node scripts/real-site-run.mjs finalize",
     "check:real-site": "node scripts/check-real-site-results.mjs",
-    "check:regression-links": "node scripts/check-regression-links.mjs"
+    "check:regression-links": "node scripts/check-regression-links.mjs",
+    "check:release": "node scripts/check-release.mjs",
+    "check:release:pack": "node scripts/check-release.mjs --require-packages --write-checksums",
+    "check:release:drift": "node scripts/check-release.mjs --remote",
+    "release:pack": "node scripts/publish-draft-release.mjs --pack-only",
+    "release:draft": "node scripts/publish-draft-release.mjs"
   },
   "license": "MIT",
   "devDependencies": {

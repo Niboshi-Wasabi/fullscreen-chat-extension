@@ -1,0 +1,67 @@
+name: Release draft
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Mark the Draft GitHub Release as a prerelease
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-draft:
+    name: release-draft-windows
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out all fetched history without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.23.2"
+          package-manager-cache: false
+      - name: Install pinned pnpm
+        run: npm.cmd install --global pnpm@11.9.0 --ignore-scripts
+      - name: Install locked dependencies without lifecycle scripts
+        run: pnpm.cmd install --frozen-lockfile --ignore-scripts
+      - name: Run local and security gates with mandatory history
+        run: pnpm.cmd verify:ci
+      - name: Build Chrome and Firefox release ZIP archives
+        run: pnpm.cmd release:pack
+      - name: Verify release ZIP manifests and emit SHA256SUMS
+        run: pnpm.cmd check:release:pack
+      - name: Create or update Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRERELEASE: ${{ inputs.prerelease }}
+        run: pnpm.cmd release:draft
+      - name: Save verified draft release packages and status
+        if: ${{ success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-packages-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            .output/fullscreen-chat-extension-*-chrome.zip
+            .output/fullscreen-chat-extension-*-firefox.zip
+            .output/SHA256SUMS.txt
+            .harness-artifacts/release-status.json
