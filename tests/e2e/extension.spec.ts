@@ -16,6 +16,22 @@ test("popup changes persist through a new extension page and locale changes", as
   await page.setViewportSize({ width: 480, height: 600 });
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page.locator("#enabled")).toBeChecked();
+  const githubLink = page.locator("#githubLink");
+  await expect(githubLink).toBeVisible();
+  await expect(githubLink).toHaveAttribute(
+    "href",
+    "https://github.com/Niboshi-Wasabi/fullscreen-chat-extension",
+  );
+  await expect(githubLink).toHaveAttribute("target", "_blank");
+  await expect(githubLink).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(githubLink.locator('[data-i18n="githubRepo"]')).toHaveText(
+    "GitHub",
+  );
+  await expect(githubLink).toHaveAttribute(
+    "aria-label",
+    "Open GitHub repository",
+  );
+  await expect(githubLink).toHaveAttribute("title", "Open GitHub repository");
   await page.locator("#enabled").focus();
   await page.keyboard.press("Space");
   await expect
@@ -31,10 +47,58 @@ test("popup changes persist through a new extension page and locale changes", as
     .poll(async () => (await readSettings(extensionWorker)).uiLocale)
     .toBe("ja");
   const second = await context.newPage();
+  await second.setViewportSize({ width: 480, height: 600 });
   await second.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(second.locator("#enabled")).not.toBeChecked();
   await expect(second.locator('input[value="danmaku"]')).toBeChecked();
   await expect(second.locator("#uiLocale")).toHaveValue("ja");
+  const secondGithub = second.locator("#githubLink");
+  await expect(secondGithub.locator('[data-i18n="githubRepo"]')).toHaveText(
+    "GitHub",
+  );
+  await expect(secondGithub).toHaveAttribute(
+    "aria-label",
+    "GitHub リポジトリを開く",
+  );
+  await expect(secondGithub).toHaveAttribute(
+    "title",
+    "GitHub リポジトリを開く",
+  );
+  const popupLayout = await second.evaluate(() => {
+    const optionsBtn = document.querySelector<HTMLElement>("#openOptions");
+    const repoLink = document.querySelector<HTMLElement>("#githubLink");
+    if (!optionsBtn || !repoLink) {
+      throw new Error("Missing popup footer actions");
+    }
+    const optRect = optionsBtn.getBoundingClientRect();
+    const repoRect = repoLink.getBoundingClientRect();
+    return {
+      innerWidth: window.innerWidth,
+      docScrollWidth: document.documentElement.scrollWidth,
+      docClientWidth: document.documentElement.clientWidth,
+      docScrollHeight: document.documentElement.scrollHeight,
+      docClientHeight: document.documentElement.clientHeight,
+      optionsRight: optRect.right,
+      repoLeft: repoRect.left,
+      repoRight: repoRect.right,
+      verticalDelta: Math.abs(
+        optRect.top + optRect.height / 2 - (repoRect.top + repoRect.height / 2),
+      ),
+    };
+  });
+  expect(popupLayout.docScrollWidth).toBeLessThanOrEqual(
+    popupLayout.docClientWidth,
+  );
+  expect(popupLayout.docScrollHeight).toBeLessThanOrEqual(
+    popupLayout.docClientHeight,
+  );
+  expect(popupLayout.optionsRight).toBeLessThanOrEqual(
+    popupLayout.repoLeft + 0.5,
+  );
+  expect(popupLayout.repoRight).toBeLessThanOrEqual(
+    popupLayout.innerWidth + 0.5,
+  );
+  expect(popupLayout.verticalDelta).toBeLessThanOrEqual(8);
   await second.screenshot({ path: testInfo.outputPath("popup-ja.png") });
 });
 

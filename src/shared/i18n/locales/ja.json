@@ -114,5 +114,7 @@
   "bridgePickReaction": "記録した場面への反応を 1 件選んでください",
   "bridgeSuggestEstimate": "推定 +{sec}秒",
   "bridgeApply": "適用",
-  "bridgeCancel": "キャンセル"
+  "bridgeCancel": "キャンセル",
+  "githubRepo": "GitHub",
+  "githubRepoTitle": "GitHub リポジトリを開く"
 }

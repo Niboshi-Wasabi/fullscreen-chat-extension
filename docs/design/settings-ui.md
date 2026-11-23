@@ -72,7 +72,7 @@ Evidence for the comparison below: PreMiD public docs + extension chrome pattern
 ### Popup (toolbar) — SDO lean + YLCFS order
 
 - Compact card, not a mini dashboard and not a Yochatto clone.
-- Order: product title → master enable → display mode → site enables → **UI language** → link to options.
+- Order: product title → master enable → display mode → site enables → **UI language** → link to options & GitHub repository.
 - Width ≈ **480px** (`min` 440 / `max` 520). **No scroll** — only that essentials set; never grow past one viewport.
 - Prefer **side-by-side** rows (`[icon] title … control`) for enums (mode segmented, language select). Stack only for wide textareas.
 - **No duplicate controls** with options. Popup owns: `enabled`, `displayMode`, site toggles, `uiLocale`. Options owns deep display / compose / filter / archive / legal / shortcuts.

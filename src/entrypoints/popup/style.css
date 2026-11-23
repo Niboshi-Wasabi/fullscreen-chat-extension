@@ -51,6 +51,17 @@ main {
   max-width: 14rem;
 }
 
+.fce-popup-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--fce-space-2);
+}
+
 .fce-btn {
   width: 100%;
+}
+
+a.fce-btn {
+  text-decoration: none;
+  white-space: nowrap;
 }
