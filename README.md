@@ -1,7 +1,7 @@
 # Fullscreen Chat Extension
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/license/mit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Release](https://img.shields.io/github/v/release/Niboshi-Wasabi/fullscreen-chat-extension?label=release)](https://github.com/Niboshi-Wasabi/fullscreen-chat-extension/releases/latest)
 
 YouTube や Twitch の動画を全画面で見ながら、チャットを読めるブラウザー拡張機能です。投稿できる配信ではコメントも送れます。
